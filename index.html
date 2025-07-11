@@ -5,49 +5,172 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Zoo Drop</title>
   <style>
+    /* Reset & base */
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-      max-width: 700px;
-      margin: 40px auto;
-      padding: 0 20px;
-      line-height: 1.6;
-      color: #333;
-      background-color: #f9f9f9;
-      text-align: center;
-    }
-    h1 {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #d9f7d9 0%, #a0d995 100%);
       color: #2c3e50;
-      margin-bottom: 0.5em;
-    }
-    p {
-      margin-bottom: 1em;
-      font-size: 1.1em;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      align-items: center;
+      padding: 20px;
     }
     a {
-      color: #2980b9;
+      color: #27ae60;
       text-decoration: none;
-      font-weight: bold;
+      font-weight: 600;
+      transition: color 0.3s ease;
     }
     a:hover {
+      color: #1e8449;
       text-decoration: underline;
     }
+
+    /* Container */
+    .container {
+      max-width: 900px;
+      width: 100%;
+      text-align: center;
+      background: #ffffffcc;
+      padding: 30px 20px 40px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+
+    /* Banner image */
+    img.banner {
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* Headline */
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 0.5rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #2c3e50;
+    }
+
+    /* Tagline */
+    .tagline {
+      font-size: 1.3rem;
+      margin-bottom: 2rem;
+      color: #34495e;
+      font-weight: 500;
+    }
+
+    /* Features */
+    ul.features {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 2.5rem;
+      font-size: 1.1rem;
+      color: #2c3e50;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: left;
+    }
+    ul.features li {
+      margin-bottom: 1rem;
+      padding-left: 1.2rem;
+      position: relative;
+    }
+    ul.features li::before {
+      content: "🦒";
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 1.2rem;
+    }
+
+    /* Call to Action button */
+    .cta-button {
+      background-color: #27ae60;
+      color: white;
+      font-size: 1.3rem;
+      padding: 0.9rem 2.5rem;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: 0 6px 14px rgba(39, 174, 96, 0.4);
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+      margin-bottom: 3rem;
+    }
+    .cta-button:hover {
+      background-color: #1e8449;
+      box-shadow: 0 8px 20px rgba(30, 132, 73, 0.6);
+    }
+
+    /* Footer */
     footer {
-      margin-top: 2em;
-      font-size: 0.9em;
-      color: #888;
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: auto;
+      padding: 10px 0;
+      text-align: center;
+      max-width: 900px;
+      width: 100%;
+    }
+    footer a {
+      margin: 0 8px;
+      font-weight: 600;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 2.2rem;
+      }
+      .tagline {
+        font-size: 1.1rem;
+      }
+      ul.features {
+        text-align: left;
+        padding-left: 1rem;
+      }
+      ul.features li::before {
+        font-size: 1rem;
+      }
+      .cta-button {
+        font-size: 1.1rem;
+        padding: 0.8rem 2rem;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Welcome to Zoo Drop!</h1>
-  <p>Stack cute animals as high as you can in this fun tap-to-drop game!</p>
-  <p>
-    <a href="privacy-policy.html">Privacy Policy</a> | 
-    <a href="terms-of-service.html">Terms of Service</a>
-  </p>
+  <div class="container">
+    <img src="images/zoodropbanner2.png" alt="Zoo Drop Banner" class="banner" />
+    <h1>Welcome to Zoo Drop!</h1>
+    <p class="tagline">Stack adorable animals as high as you can in this addictive tap-to-drop game!</p>
+
+    <ul class="features">
+      <li>Simple one-tap stacking gameplay</li>
+      <li>Cute cartoon animals with fun animations</li>
+      <li>Daily challenges and rewards</li>
+      <li>Join Zoo Club for exclusive skins & no ads</li>
+    </ul>
+
+    <a href="#" class="cta-button" target="_blank" rel="noopener noreferrer">Play Now</a>
+
+    <p>
+      <a href="privacy-policy.html">Privacy Policy</a> | 
+      <a href="terms-of-service.html">Terms of Service</a>
+    </p>
+  </div>
+
   <footer>
-    <p>© Your Skin Matters LLC</p>
+    &copy; 2025 Your Skin Matters LLC
   </footer>
 </body>
 </html>
