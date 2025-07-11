@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zoo Drop</title>
+</head>
+<body>
+    <h1>Welcome to Zoo Drop!</h1>
+    <p>Stack cute animals as high as you can in this fun tap-to-drop game!</p>
+    <p><a href="privacy-policy.html">Privacy Policy</a> | <a href="terms-of-service.html">Terms of Service</a></p>
+</body>
+</html>
