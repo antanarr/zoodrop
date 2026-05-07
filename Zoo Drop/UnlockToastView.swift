@@ -4,21 +4,32 @@ import SwiftUI
 // that appears at the top of the screen when an animal is unlocked.
 struct UnlockToastView: View {
     let animal: Animal
+    @State private var sparkle = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 16) {
-            Image(animal.imageName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 60, height: 60)
-                .padding(8)
-                .background(Color.white.opacity(0.2))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
+            ZStack {
+                Circle()
+                    .fill(animal.rarity.color.opacity(0.35))
+                    .frame(width: 82, height: 82)
+                    .scaleEffect(sparkle ? 1.12 : 0.88)
+                    .blur(radius: 5)
+
+                Image(animal.imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 62, height: 62)
+                    .rotationEffect(.degrees(sparkle ? 4 : -4))
+                    .scaleEffect(sparkle ? 1.06 : 0.98)
+            }
 
             VStack(alignment: .leading) {
                 Text("Unlocked!")
-                    .font(.headline)
+                    .font(.caption.weight(.heavy))
                     .foregroundColor(.white)
+                    .textCase(.uppercase)
+                    .tracking(1.1)
                 Text(animal.name)
                     .font(.title2.bold())
                     .foregroundColor(.white)
@@ -26,13 +37,14 @@ struct UnlockToastView: View {
             Spacer()
         }
         .padding()
-        .background(
-            .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
+        .premiumGlass(cornerRadius: 22, tint: animal.rarity.color.opacity(0.32), interactive: false)
         .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
         .padding(.horizontal)
-        // Animate its appearance and disappearance from the top edge.
         .transition(.move(edge: .top).combined(with: .opacity))
+        .onAppear {
+            guard !reduceMotion else { return }
+            sparkle = true
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.72).repeatForever(autoreverses: true), value: sparkle)
     }
 }

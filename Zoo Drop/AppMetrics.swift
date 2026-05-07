@@ -2,8 +2,6 @@ import Foundation
 import CoreGraphics
 
 struct AppMetrics {
-    // --- THIS IS THE FIX ---
-    // Reduced gravity for a slower, more controlled fall.
     static let gravityForce: CGFloat = -4.0
     
     static let foulLineHeightPercentage: CGFloat = 0.85
@@ -20,4 +18,14 @@ struct AppMetrics {
     }
     
     static let maxRevivesPerSession = 1
+
+    struct GameModes {
+        static let deterministicQueueLength = 96
+        static let timedStampedeDuration: TimeInterval = 90
+        static let defaultChallengeTargetScore = 3_000
+        static let defaultChallengeTargetMerges = 18
+        static let defaultChallengeTargetCombo = 5
+        static let dailySafariUnlockScore = 500
+        static let challengeUnlockScore = 1_000
+    }
 }

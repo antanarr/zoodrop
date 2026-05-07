@@ -117,6 +117,81 @@ final class ZooDropModelTests: XCTestCase {
         XCTAssertEqual(decodedAnimal.isSubscriberExclusive, true)
     }
 
+    func testGameModeConfigurationExposesProgressionRules() {
+        XCTAssertEqual(GameMode.allCases.map(\.displayName), ["Classic", "Daily Safari", "Timed Stampede", "Zen", "Challenge"])
+        XCTAssertTrue(GameMode.dailySafari.usesDeterministicQueue)
+        XCTAssertTrue(GameMode.challenge.usesDeterministicQueue)
+        XCTAssertFalse(GameMode.zen.allowsGameOver)
+        XCTAssertEqual(GameMode.timedStampede.timeLimit, AppMetrics.GameModes.timedStampedeDuration)
+        XCTAssertGreaterThan(GameMode.timedStampede.scoreMultiplier, GameMode.classic.scoreMultiplier)
+    }
+
+    func testDailySafariQueueIsDeterministicForDate() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = Date(timeIntervalSince1970: 1_725_235_200)
+        let seed = AnimalLibrary.dailySafariSeed(for: date, calendar: calendar)
+
+        let firstQueue = AnimalLibrary.deterministicQueue(mode: .dailySafari, seed: seed, count: 18).map(\.name)
+        let secondQueue = AnimalLibrary.deterministicQueue(mode: .dailySafari, seed: seed, count: 18).map(\.name)
+        let nextDaySeed = AnimalLibrary.dailySafariSeed(for: date.addingTimeInterval(86_400), calendar: calendar)
+        let nextDayQueue = AnimalLibrary.deterministicQueue(mode: .dailySafari, seed: nextDaySeed, count: 18).map(\.name)
+
+        XCTAssertEqual(firstQueue, secondQueue)
+        XCTAssertNotEqual(firstQueue, nextDayQueue)
+        XCTAssertEqual(firstQueue[8], "Panda")
+        XCTAssertEqual(firstQueue[17], "Panda")
+    }
+
+    func testProgressionMetricsTracksRunsTutorialAndChallenges() throws {
+        let elephant = try XCTUnwrap(AnimalLibrary.getAnimal(byName: "Elephant"))
+        var metrics = PlayerProgressionMetrics()
+
+        metrics.recordDrop()
+        metrics.recordMerge(score: 320, combo: 4, animal: elephant)
+        metrics.recordRunFinished(mode: .challenge, score: 4_200, combo: 4)
+        metrics.markTutorialStepComplete(.firstChallengeRun)
+        metrics.recordChallengeCompletion(id: "test-challenge")
+
+        XCTAssertEqual(metrics.lifetimeDrops, 1)
+        XCTAssertEqual(metrics.lifetimeMerges, 1)
+        XCTAssertEqual(metrics.lifetimeScore, 320)
+        XCTAssertEqual(metrics.modeHighScores[.challenge], 4_200)
+        XCTAssertTrue(metrics.completedTutorialSteps.contains(.firstChallengeRun))
+        XCTAssertEqual(metrics.challengeCompletions["test-challenge"], 1)
+        XCTAssertEqual(metrics.largestAnimalTier, AnimalLibrary.tierIndex(for: elephant))
+    }
+
+    func testSavedRunSnapshotCodableRoundTripPreservesResumeState() throws {
+        let snapshot = SavedRunSnapshot(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000123")!,
+            createdAt: Date(timeIntervalSince1970: 100),
+            mode: .dailySafari,
+            score: 1_234,
+            nextAnimalName: "Panda",
+            queuedAnimalNames: ["Monkey", "Penguin", "Panda"],
+            queueCursor: 2,
+            droppableAnimalNames: ["Monkey", "Penguin", "Sloth", "Panda"],
+            animalStates: [
+                SavedRunAnimalState(animalName: "Monkey", x: 12, y: 34, rotation: 0.5, velocityDX: 1, velocityDY: -2, angularVelocity: 0.25)
+            ],
+            largestAnimalName: "Panda",
+            longestCombo: 3,
+            totalMerges: 4,
+            drops: 5,
+            canRevive: true,
+            remainingTime: nil,
+            challengeProgress: nil
+        )
+
+        let data = try JSONEncoder().encode(snapshot)
+        let decodedSnapshot = try JSONDecoder().decode(SavedRunSnapshot.self, from: data)
+
+        XCTAssertEqual(decodedSnapshot, snapshot)
+        XCTAssertTrue(decodedSnapshot.isResumable)
+        XCTAssertEqual(decodedSnapshot.animalStates.first?.animalName, "Monkey")
+    }
+
     private func followMergeChain(startingAt name: String) -> [Animal] {
         var chain: [Animal] = []
         var nextName: String? = name

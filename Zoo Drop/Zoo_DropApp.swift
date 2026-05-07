@@ -89,6 +89,7 @@ struct Zoo_DropApp: App {
     @MainActor
     private func finishLoading() async {
         if ProcessInfo.processInfo.arguments.contains("UITEST_MODE") {
+            UserDefaults.standard.removeObject(forKey: "savedRunSnapshot")
             hasConsentedToPrivacy = true
             hasCompletedOnboarding = true
             launchStep = .home
@@ -132,7 +133,7 @@ private struct PrivacyConsentView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
-                Text("Zoo Drop stores progress on this device and uses Apple Game Center, StoreKit, and Google AdMob. Ads are requested only after Google's privacy checks, and Zoo Club subscribers do not receive ads.")
+                Text("Zoo Drop stores progress on this device and uses Apple Game Center, StoreKit, and Google AdMob. Ads are requested only after Google's privacy checks, and Zoo Club subscribers or Remove Ads owners do not receive ads.")
                     .font(.callout.weight(.semibold))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.9))

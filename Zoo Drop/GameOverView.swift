@@ -11,6 +11,7 @@ struct GameOverView: View {
     
     let onRetry: () -> Void
     let onRevive: () -> Void
+    var onQuit: (() -> Void)? = nil
     let canRevive: Bool
 
     let largestAnimal: String
@@ -19,6 +20,8 @@ struct GameOverView: View {
     @State private var displayedScore: Int = 0
     @State private var scaleEffect: CGFloat = 0.8
     @State private var isSharing = false // State to show activity indicator
+    @State private var glow = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -27,69 +30,110 @@ struct GameOverView: View {
                 .scaledToFill()
                 .ignoresSafeArea()
 
-            VStack(spacing: 20) {
-                Text("Game Over")
-                    .font(.system(size: 60, weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
-                    .shadow(radius: 5)
-                
-                Text("\(displayedScore)")
-                    .font(.system(size: 70, weight: .bold, design: .rounded))
-                    .foregroundColor(.yellow)
-                    .shadow(radius: 3)
-                
-                VStack(spacing: 6) {
-                    Text("Largest Animal: \(largestAnimal)")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text("Longest Combo: \(longestCombo)")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                }
-                    
-                VStack(spacing: 15) {
-                    if canRevive {
-                        Button(action: onRevive) {
-                            Label("Revive with Ad", systemImage: "play.tv.fill")
-                                .font(.headline.bold()).foregroundColor(.white).frame(maxWidth: .infinity)
-                                .padding().background(Color.purple).cornerRadius(12)
-                        }
-                    }
-                    
-                    // --- VIR-01: UPDATED SHARE BUTTON ---
-                    Button(action: shareAction) {
-                        if isSharing {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .frame(maxWidth: .infinity, minHeight: 24) // Match button height
-                                .padding()
-                                .background(Color.blue.opacity(0.7))
-                                .cornerRadius(12)
-                        } else {
-                            Label("Share as GIF", systemImage: "square.and.arrow.up")
-                                .font(.headline.bold()).foregroundColor(.white).frame(maxWidth: .infinity)
-                                .padding().background(Color.blue).cornerRadius(12)
-                        }
-                    }
-                    .disabled(isSharing || frames == nil) // Disable if sharing or no frames are available
+            LinearGradient(colors: [.black.opacity(0.12), .black.opacity(0.72)], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
 
-                    Button(action: onRetry) {
-                        Label("Play Again", systemImage: "arrow.counterclockwise")
-                            .font(.headline.bold()).foregroundColor(.white).frame(maxWidth: .infinity)
-                            .padding().background(Color.green).cornerRadius(12)
+            ScrollView {
+                VStack(spacing: 18) {
+                    ZStack {
+                        Circle()
+                            .fill(PremiumTheme.gold.opacity(0.24))
+                            .frame(width: 190, height: 190)
+                            .blur(radius: 22)
+                            .scaleEffect(glow ? 1.12 : 0.88)
+
+                        VStack(spacing: 4) {
+                            Text("Game Over")
+                                .font(.system(size: 48, weight: .black, design: .rounded))
+                                .foregroundColor(.white)
+                                .shadow(radius: 5)
+
+                            Text("\(displayedScore)")
+                                .font(.system(size: 68, weight: .black, design: .rounded))
+                                .foregroundColor(PremiumTheme.gold)
+                                .shadow(color: PremiumTheme.gold.opacity(0.65), radius: 14)
+                                .monospacedDigit()
+                                .accessibilityLabel("Final score \(score)")
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        resultPill(title: "Largest", value: largestAnimal, icon: "pawprint.fill")
+                        resultPill(title: "Combo", value: "\(longestCombo)x", icon: "sparkles")
+                    }
+
+                    VStack(spacing: 12) {
+                        if canRevive {
+                            Button(action: onRevive) {
+                                Label("Revive", systemImage: "play.tv.fill")
+                            }
+                            .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.violet))
+                            .accessibilityLabel("Revive with a rewarded ad")
+                            .accessibilityIdentifier("reviveButton")
+                        }
+
+                        Button(action: shareAction) {
+                            if isSharing {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .frame(maxWidth: .infinity, minHeight: 24)
+                            } else {
+                                Label("Share GIF", systemImage: "square.and.arrow.up")
+                            }
+                        }
+                        .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.lagoon))
+                        .disabled(isSharing || frames == nil)
+                        .accessibilityLabel("Share collapse as GIF")
+                        .accessibilityIdentifier("shareGIFButton")
+
+                        Button(action: onRetry) {
+                            Label("Play Again", systemImage: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.mint, prominence: .primary))
+                        .accessibilityIdentifier("playAgainButton")
+
+                        if let onQuit {
+                            Button(action: onQuit) {
+                                Label("Menu", systemImage: "house.fill")
+                            }
+                            .buttonStyle(PremiumButtonStyle(tint: .white.opacity(0.36)))
+                            .accessibilityIdentifier("gameOverMenuButton")
+                        }
                     }
                 }
-                .padding(.horizontal, 40)
+                .padding(24)
+                .frame(maxWidth: 420)
+                .premiumGlass(cornerRadius: 34, tint: PremiumTheme.coral.opacity(0.18))
+                .padding(22)
             }
-            .padding()
+            .scrollIndicators(.hidden)
             .scaleEffect(scaleEffect)
             .onAppear {
                 animateScore()
+                glow = true
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
                     scaleEffect = 1.0
                 }
             }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 1.25).repeatForever(autoreverses: true), value: glow)
         }
+    }
+
+    private func resultPill(title: String, value: String, icon: String) -> some View {
+        VStack(spacing: 5) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.heavy))
+                .foregroundStyle(.white.opacity(0.7))
+            Text(value)
+                .font(.headline.weight(.black))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 8)
+        .premiumGlass(cornerRadius: 18, tint: PremiumTheme.mint.opacity(0.18))
     }
     
     // --- VIR-01: SHARE ACTION LOGIC ---

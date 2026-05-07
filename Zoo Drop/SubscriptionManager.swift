@@ -8,14 +8,34 @@ final class SubscriptionManager: ObservableObject {
     @Published var isSubscribed = false {
         didSet { saveState() }
     }
+    @Published private(set) var hasRemovedAds = false {
+        didSet { saveState() }
+    }
     @Published var goldenEggCount: Int = 0 {
         didSet { saveState() }
     }
 
     private(set) var lastClaimDate: Date?
 
+    let monthlySubscriptionProductID = "com.yourskinmatters.zoodrop.zooclub.monthly"
+    let yearlySubscriptionProductID = "com.yourskinmatters.zoodrop.zooclub.yearly"
+    let removeAdsProductID = "com.yourskinmatters.zoodrop.removeads"
+    let starterPackProductID = "com.yourskinmatters.zoodrop.starterpack"
     let subscriptionProductID = "com.yourskinmatters.zoodrop.zooclub.monthly"
+    let subscriptionProductIDs: Set<String> = [
+        "com.yourskinmatters.zoodrop.zooclub.monthly",
+        "com.yourskinmatters.zoodrop.zooclub.yearly"
+    ]
     let eggPackProductIDs: Set<String> = [
+        "com.yourskinmatters.zoodrop.eggs.small",
+        "com.yourskinmatters.zoodrop.eggs.medium",
+        "com.yourskinmatters.zoodrop.eggs.large"
+    ]
+    let nonConsumableProductIDs: Set<String> = [
+        "com.yourskinmatters.zoodrop.removeads"
+    ]
+    let consumableProductIDs: Set<String> = [
+        "com.yourskinmatters.zoodrop.starterpack",
         "com.yourskinmatters.zoodrop.eggs.small",
         "com.yourskinmatters.zoodrop.eggs.medium",
         "com.yourskinmatters.zoodrop.eggs.large"
@@ -24,11 +44,20 @@ final class SubscriptionManager: ObservableObject {
     private let goldenEggsKey = "goldenEggCountKey"
     private let lastClaimDateKey = "lastClaimDateKey"
     private let isSubscribedKey = "isUserSubscribedKey"
+    private let hasRemovedAdsKey = "hasRemovedAdsKey"
     private let processedTransactionsKey = "processedStoreKitTransactionIDs"
 
     private(set) var purchasedProductIDs = Set<String>()
     private var processedTransactionIDs = Set<String>()
     private var transactionUpdateListener: Task<Void, Never>?
+
+    var hasAdFreeEntitlement: Bool {
+        isSubscribed || hasRemovedAds
+    }
+
+    var shouldShowAds: Bool {
+        !hasAdFreeEntitlement
+    }
 
     var canClaimDailyGoldenEgg: Bool {
         guard isSubscribed else { return false }
@@ -57,9 +86,9 @@ final class SubscriptionManager: ObservableObject {
         defer { isLoadingProducts = false }
 
         do {
-            let productIDs = [subscriptionProductID] + Array(eggPackProductIDs)
+            let productIDs = Array(subscriptionProductIDs.union(nonConsumableProductIDs).union(consumableProductIDs))
             availableProducts = try await Product.products(for: productIDs).sorted { lhs, rhs in
-                lhs.displayName < rhs.displayName
+                productSortIndex(lhs.id) < productSortIndex(rhs.id)
             }
         } catch {
             print("SubscriptionManager: failed to load products: \(error.localizedDescription)")
@@ -85,22 +114,29 @@ final class SubscriptionManager: ObservableObject {
 
     func checkSubscriptionStatus() async {
         var hasActiveSubscription = false
+        var hasActiveRemoveAds = false
         purchasedProductIDs.removeAll()
 
         for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result else { continue }
+            guard case .verified(let transaction) = result else {
+                print("SubscriptionManager: skipped unverified current entitlement")
+                continue
+            }
             guard transaction.revocationDate == nil else { continue }
             if let expirationDate = transaction.expirationDate, expirationDate < Date() {
                 continue
             }
 
             purchasedProductIDs.insert(transaction.productID)
-            if transaction.productID == subscriptionProductID {
+            if subscriptionProductIDs.contains(transaction.productID) {
                 hasActiveSubscription = true
+            } else if transaction.productID == removeAdsProductID {
+                hasActiveRemoveAds = true
             }
         }
 
         isSubscribed = hasActiveSubscription
+        hasRemovedAds = hasActiveRemoveAds
         saveState()
     }
 
@@ -124,12 +160,15 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
-    func restore() async {
+    @discardableResult
+    func restore() async -> Bool {
         do {
             try await AppStore.sync()
             await checkSubscriptionStatus()
+            return true
         } catch {
             print("SubscriptionManager: restore failed: \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -137,7 +176,10 @@ final class SubscriptionManager: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             for await result in Transaction.updates {
-                guard case .verified(let transaction) = result else { continue }
+                guard case .verified(let transaction) = result else {
+                    print("SubscriptionManager: skipped unverified transaction update")
+                    continue
+                }
                 await self.handleVerifiedTransaction(transaction)
                 await transaction.finish()
             }
@@ -145,7 +187,7 @@ final class SubscriptionManager: ObservableObject {
     }
 
     private func handleVerifiedTransaction(_ transaction: Transaction) async {
-        if transaction.productID == subscriptionProductID {
+        if subscriptionProductIDs.contains(transaction.productID) {
             if transaction.revocationDate == nil,
                transaction.expirationDate.map({ $0 > Date() }) ?? true {
                 isSubscribed = true
@@ -156,9 +198,22 @@ final class SubscriptionManager: ObservableObject {
             return
         }
 
-        guard eggPackProductIDs.contains(transaction.productID) else { return }
+        if transaction.productID == removeAdsProductID {
+            if transaction.revocationDate == nil {
+                hasRemovedAds = true
+                purchasedProductIDs.insert(transaction.productID)
+            } else {
+                await checkSubscriptionStatus()
+            }
+            return
+        }
+
+        guard consumableProductIDs.contains(transaction.productID) else { return }
         let transactionKey = String(transaction.id)
-        guard !processedTransactionIDs.contains(transactionKey) else { return }
+        guard !processedTransactionIDs.contains(transactionKey) else {
+            print("SubscriptionManager: transaction \(transaction.id) already granted")
+            return
+        }
 
         grantEggs(for: transaction.productID)
         processedTransactionIDs.insert(transactionKey)
@@ -167,6 +222,8 @@ final class SubscriptionManager: ObservableObject {
 
     private func grantEggs(for productID: String) {
         switch productID {
+        case "com.yourskinmatters.zoodrop.starterpack":
+            goldenEggCount += 250
         case "com.yourskinmatters.zoodrop.eggs.small":
             goldenEggCount += 100
         case "com.yourskinmatters.zoodrop.eggs.medium":
@@ -178,11 +235,33 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
+    private func productSortIndex(_ productID: String) -> Int {
+        switch productID {
+        case monthlySubscriptionProductID:
+            return 0
+        case yearlySubscriptionProductID:
+            return 1
+        case removeAdsProductID:
+            return 2
+        case starterPackProductID:
+            return 3
+        case "com.yourskinmatters.zoodrop.eggs.small":
+            return 4
+        case "com.yourskinmatters.zoodrop.eggs.medium":
+            return 5
+        case "com.yourskinmatters.zoodrop.eggs.large":
+            return 6
+        default:
+            return 99
+        }
+    }
+
     private func saveState() {
         let defaults = UserDefaults.standard
         defaults.set(goldenEggCount, forKey: goldenEggsKey)
         defaults.set(lastClaimDate, forKey: lastClaimDateKey)
         defaults.set(isSubscribed, forKey: isSubscribedKey)
+        defaults.set(hasRemovedAds, forKey: hasRemovedAdsKey)
         defaults.set(Array(processedTransactionIDs), forKey: processedTransactionsKey)
     }
 
@@ -191,6 +270,7 @@ final class SubscriptionManager: ObservableObject {
         goldenEggCount = defaults.integer(forKey: goldenEggsKey)
         lastClaimDate = defaults.object(forKey: lastClaimDateKey) as? Date
         isSubscribed = defaults.bool(forKey: isSubscribedKey)
+        hasRemovedAds = defaults.bool(forKey: hasRemovedAdsKey)
         processedTransactionIDs = Set(defaults.stringArray(forKey: processedTransactionsKey) ?? [])
     }
 }

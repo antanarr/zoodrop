@@ -22,6 +22,60 @@ struct AnimalLibrary {
         return allAnimals.first { $0.name == name }
     }
 
+    static func animals(named names: [String]) -> [Animal] {
+        names.compactMap { getAnimal(byName: $0) }
+    }
+
+    static func droppableAnimals(for mode: GameMode, score: Int = 0, isSubscribed: Bool = false) -> [Animal] {
+        var animals = startingAnimals
+
+        if score >= AppMetrics.GameModes.dailySafariUnlockScore || mode == .dailySafari {
+            animals.append(contentsOf: ["Panda"].compactMap { getAnimal(byName: $0) })
+        }
+
+        if score >= AppMetrics.GameModes.challengeUnlockScore || mode == .challenge || mode == .timedStampede {
+            animals.append(contentsOf: ["Giraffe"].compactMap { getAnimal(byName: $0) })
+        }
+
+        if isSubscribed {
+            animals.append(contentsOf: allAnimals.filter { $0.isSubscriberExclusive == true })
+        }
+
+        var seen = Set<String>()
+        return animals.filter { seen.insert($0.name).inserted }
+    }
+
+    static func deterministicQueue(
+        mode: GameMode,
+        seed: UInt64,
+        count: Int = AppMetrics.GameModes.deterministicQueueLength,
+        isSubscribed: Bool = false
+    ) -> [Animal] {
+        var generator = SeededRandomNumberGenerator(seed: seed)
+        let source = droppableAnimals(for: mode, isSubscribed: isSubscribed)
+        guard !source.isEmpty else { return [] }
+
+        return (0..<count).compactMap { index in
+            if mode == .dailySafari, index % 9 == 8, let safariFeature = getAnimal(byName: "Panda") {
+                return safariFeature
+            }
+            if mode == .challenge, index % 11 == 10, let challengeFeature = getAnimal(byName: "Giraffe") {
+                return challengeFeature
+            }
+            return source.randomElement(using: &generator)
+        }
+    }
+
+    static func dailySafariSeed(for date: Date = Date(), calendar: Calendar = .current) -> UInt64 {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let seedText = "daily-\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
+        return SeededRandomNumberGenerator.stableSeed(from: seedText)
+    }
+
+    static func challengeSeed(challengeID: String) -> UInt64 {
+        SeededRandomNumberGenerator.stableSeed(from: "challenge-\(challengeID)")
+    }
+
     static func tierIndex(for animal: Animal) -> Int {
         guard let index = normalMergeChain.firstIndex(where: { $0.name == animal.name }) else {
             return 0

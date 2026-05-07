@@ -8,7 +8,7 @@
       "internalID": "zooclub.monthly",
       "localizations": [
         {
-          "description": "Removes ads, adds a score bonus, daily Golden Eggs, and exclusive mythical animals.",
+          "description": "Removes ads and ad-gated revives while active, adds daily Golden Eggs, and unlocks exclusive mythical animals.",
           "displayName": "Zoo Club Monthly",
           "locale": "en_US"
         }
@@ -18,6 +18,53 @@
       "subscriptionGroupID": "zoodrop.zooclub",
       "subscriptionPeriod": "P1M",
       "type": "AutoRenewableSubscription"
+    },
+    {
+      "displayPrice": "39.99",
+      "familyShareable": false,
+      "internalID": "zooclub.yearly",
+      "localizations": [
+        {
+          "description": "One year of ad-free Zoo Club benefits, ad-free revives, daily Golden Eggs, and exclusive mythical animals.",
+          "displayName": "Zoo Club Yearly",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.yourskinmatters.zoodrop.zooclub.yearly",
+      "referenceName": "Zoo Club Yearly",
+      "subscriptionGroupID": "zoodrop.zooclub",
+      "subscriptionPeriod": "P1Y",
+      "type": "AutoRenewableSubscription"
+    },
+    {
+      "displayPrice": "9.99",
+      "familyShareable": false,
+      "internalID": "removeads",
+      "localizations": [
+        {
+          "description": "Permanently removes ads and ad-gated revives from Zoo Drop.",
+          "displayName": "Remove Ads",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.yourskinmatters.zoodrop.removeads",
+      "referenceName": "Remove Ads",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "1.99",
+      "familyShareable": false,
+      "internalID": "starterpack",
+      "localizations": [
+        {
+          "description": "Adds 250 Golden Eggs.",
+          "displayName": "Starter Pack",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.yourskinmatters.zoodrop.starterpack",
+      "referenceName": "Starter Pack",
+      "type": "Consumable"
     },
     {
       "displayPrice": "0.99",

@@ -20,9 +20,9 @@ struct SubscriptionTermsView: View {
                     .accessibilityHint("Information about the Zoo Club subscription")
 
                 Text("""
-                Last updated: May 6, 2026
+                Last updated: May 7, 2026
 
-                Zoo Club is an optional auto-renewable subscription. Benefits shown in the purchase screen may include removing ads and unlocking subscriber-only game rewards or cosmetic content while your subscription is active.
+                Zoo Club is an optional auto-renewable subscription available in monthly and yearly plans. Benefits shown in the purchase screen may include removing ads while subscribed, daily Golden Eggs, subscriber-only animals, and other subscriber-only rewards or cosmetic content while your subscription is active.
 
                 The subscription period and price are shown before purchase. Payment is charged to your Apple Account when you confirm the purchase.
 
@@ -34,7 +34,9 @@ struct SubscriptionTermsView: View {
 
                 Refund requests are handled by Apple. Zoo Drop cannot issue App Store refunds directly.
 
-                If the app offers restore purchases, use it after reinstalling the app or changing devices to restore eligible active entitlements.
+                Remove Ads is a separate non-consumable in-app purchase. It is not a subscription and can be restored with Restore Purchases. Golden Egg packs and Starter Pack are consumable purchases. Consumables are granted after Apple verifies the transaction and are not restored as reusable entitlements.
+
+                Use Restore Purchases after reinstalling the app or changing devices to restore eligible active subscriptions and non-consumable purchases.
 
                 For subscription questions, contact support@zoodrop.app.
                 """)

@@ -14,7 +14,7 @@ final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
     private var lastInterstitialShowDate: Date?
     private let interstitialCooldown: TimeInterval = 75
     private var shouldServeAds = false
-    private var lastKnownSubscriptionStatus = false
+    private var lastKnownAdFreeEntitlement = false
 
     #if DEBUG
     private let interstitialAdUnitID = "ca-app-pub-3940256099942544/4411468910"
@@ -24,10 +24,10 @@ final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
     private let rewardedAdUnitID = "ca-app-pub-8632219809769416/1194127124"
     #endif
 
-    func configureAdsIfAllowed(isSubscribed: Bool) {
-        lastKnownSubscriptionStatus = isSubscribed
+    func configureAdsIfAllowed(hasAdFreeEntitlement: Bool) {
+        lastKnownAdFreeEntitlement = hasAdFreeEntitlement
 
-        guard !isSubscribed,
+        guard !hasAdFreeEntitlement,
               !ProcessInfo.processInfo.arguments.contains("UITEST_MODE") else {
             disableAds()
             return
@@ -160,7 +160,7 @@ final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
                 if let error {
                     print("AdManager: privacy options unavailable: \(error.localizedDescription)")
                 }
-                self?.configureAdsIfAllowed(isSubscribed: self?.lastKnownSubscriptionStatus ?? false)
+                self?.configureAdsIfAllowed(hasAdFreeEntitlement: self?.lastKnownAdFreeEntitlement ?? false)
             }
         }
     }

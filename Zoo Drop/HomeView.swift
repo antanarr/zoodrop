@@ -8,9 +8,12 @@ struct HomeView: View {
     @EnvironmentObject private var soundManager: SoundManager
     @EnvironmentObject private var questManager: QuestManager
 
-    @State private var showGameView = false
+    @State private var activeGameLaunch: GameLaunch?
     @State private var activeSheet: HomeSheet?
     @State private var shouldAnimateDailyButton = false
+    @State private var mascotBounce = false
+    @State private var canResumeSavedRun = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage("lastRewardCheckDate") private var lastRewardCheckDate = ""
     @AppStorage("highScore") private var highScore = 0
@@ -19,22 +22,13 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Image("titlescreen")
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
-
-                LinearGradient(
-                    colors: [.black.opacity(0.12), .black.opacity(0.58)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AmbientSafariBackground()
 
                 ScrollView {
                     VStack(spacing: 18) {
                         header
-                        playButton
+                        continueRunButton
+                        modeStrip
                         menuGrid
                     }
                     .frame(maxWidth: .infinity)
@@ -44,76 +38,139 @@ struct HomeView: View {
                 .scrollIndicators(.hidden)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .fullScreenCover(isPresented: $showGameView) {
-                GameView(viewModel: GameViewModel(
-                    soundManager: soundManager,
-                    hapticManager: HapticManager(),
-                    gameCenterManager: gameCenterManager,
-                    subscriptionManager: subscriptionManager,
-                    adManager: adManager,
-                    zooDexManager: zooDexManager,
-                    questManager: questManager
-                ))
+            .fullScreenCover(item: $activeGameLaunch, onDismiss: {
+                refreshSavedRunState()
+            }) { launch in
+                GameView(
+                    viewModel: GameViewModel(
+                        soundManager: soundManager,
+                        hapticManager: HapticManager(),
+                        gameCenterManager: gameCenterManager,
+                        subscriptionManager: subscriptionManager,
+                        adManager: adManager,
+                        zooDexManager: zooDexManager,
+                        questManager: questManager
+                    ),
+                    launch: launch
+                )
             }
             .sheet(item: $activeSheet) { sheet in
                 destination(for: sheet)
             }
             .onAppear {
                 checkForDailyReward()
+                refreshSavedRunState()
+                if !reduceMotion {
+                    mascotBounce = true
+                }
                 if !ProcessInfo.processInfo.arguments.contains("UITEST_MODE") {
                     gameCenterManager.authenticateUser()
                     soundManager.playThemeMusic()
                     if hasConsentedToPrivacy {
-                        adManager.configureAdsIfAllowed(isSubscribed: subscriptionManager.isSubscribed)
+                        adManager.configureAdsIfAllowed(hasAdFreeEntitlement: subscriptionManager.hasAdFreeEntitlement)
                     }
                 }
             }
-            .onChange(of: subscriptionManager.isSubscribed) { _, isSubscribed in
+            .onChange(of: subscriptionManager.hasAdFreeEntitlement) { _, hasAdFreeEntitlement in
                 guard !ProcessInfo.processInfo.arguments.contains("UITEST_MODE"),
                       hasConsentedToPrivacy else { return }
-                adManager.configureAdsIfAllowed(isSubscribed: isSubscribed)
+                adManager.configureAdsIfAllowed(hasAdFreeEntitlement: hasAdFreeEntitlement)
             }
         }
     }
 
     private var header: some View {
         VStack(spacing: 12) {
-            Image("logo")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 230)
-                .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
+            ZStack {
+                Image("fx_button_gold_glow")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 260, height: 160)
+                    .opacity(0.62)
+                    .scaleEffect(mascotBounce ? 1.08 : 0.96)
+
+                Image("logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 238)
+                    .rotationEffect(.degrees(mascotBounce && !reduceMotion ? 1.4 : -1.4))
+                    .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
+            }
 
             HStack(spacing: 12) {
                 statPill(title: "Best", value: "\(highScore)", icon: "trophy.fill")
                 statPill(title: "Eggs", value: "\(subscriptionManager.goldenEggCount)", icon: "circle.fill")
             }
 
-            if subscriptionManager.isSubscribed {
-                Label("Zoo Club Active", systemImage: "crown.fill")
+            if subscriptionManager.hasAdFreeEntitlement {
+                Label(subscriptionManager.isSubscribed ? "Zoo Club Active" : "Ads Removed", systemImage: subscriptionManager.isSubscribed ? "crown.fill" : "shield.checkered")
                     .font(.subheadline.weight(.heavy))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(.yellow.opacity(0.9), in: Capsule())
-                    .foregroundStyle(.black)
+                    .premiumGlass(cornerRadius: 18, tint: PremiumTheme.gold.opacity(0.35))
+                    .foregroundStyle(.white)
             }
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: mascotBounce)
+    }
+
+    @ViewBuilder
+    private var continueRunButton: some View {
+        Button {
+            activeGameLaunch = .new(.classic)
+        } label: {
+            Label("Play Classic", systemImage: "play.fill")
+                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.mint, prominence: .primary))
+        .frame(maxWidth: 330)
+        .accessibilityLabel("Play Zoo Drop")
+        .accessibilityIdentifier("playButton")
+
+        if canResumeSavedRun {
+            Button {
+                activeGameLaunch = .resume
+            } label: {
+                Label("Resume Saved Run", systemImage: "arrow.uturn.forward.circle.fill")
+            }
+            .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.lagoon))
+            .frame(maxWidth: 330)
+            .accessibilityIdentifier("resumeRunButton")
         }
     }
 
-    private var playButton: some View {
-        Button {
-            showGameView = true
-        } label: {
-            Label("Play", systemImage: "play.fill")
-                .font(.system(size: 32, weight: .heavy, design: .rounded))
-                .frame(maxWidth: 320)
-                .padding(.vertical, 18)
-                .background(.green.gradient, in: RoundedRectangle(cornerRadius: 18))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.35), radius: 10, y: 6)
+    private var modeStrip: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Safari Modes")
+                        .font(.title2.weight(.black))
+                        .foregroundStyle(.white)
+                    Text("Daily seeds, timed runs, zen play, and challenges.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+                Spacer()
+            }
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 12) {
+                    ForEach(GameMode.allCases) { mode in
+                        modeCard(mode)
+                    }
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+            }
+            .scrollIndicators(.hidden)
         }
-        .accessibilityLabel("Play Zoo Drop")
-        .accessibilityIdentifier("playButton")
+        .padding(16)
+        .frame(maxWidth: 430, alignment: .leading)
+        .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .premiumGlass(cornerRadius: 26, tint: PremiumTheme.lagoon.opacity(0.14))
+        .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
+        .clipped()
     }
 
     private var menuGrid: some View {
@@ -129,6 +186,34 @@ struct HomeView: View {
             menuButton(.legal, color: .indigo, icon: "doc.text.fill")
         }
         .frame(maxWidth: 430)
+    }
+
+    private func modeCard(_ mode: GameMode) -> some View {
+        Button {
+            activeGameLaunch = .new(mode)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: mode.iconName)
+                    .font(.title2.weight(.black))
+                    .foregroundStyle(mode.tint)
+                Text(mode.displayName)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(mode.shortDescription)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(width: 142, height: 118, alignment: .leading)
+            .padding(12)
+            .premiumGlass(cornerRadius: 22, tint: mode.tint.opacity(0.28), interactive: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(mode.displayName) mode")
+        .accessibilityIdentifier("modeButton-\(mode.rawValue)")
     }
 
     private func statPill(title: String, value: String, icon: String) -> some View {
@@ -147,7 +232,7 @@ struct HomeView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
-        .background(.black.opacity(0.42), in: Capsule())
+        .premiumGlass(cornerRadius: 22, tint: .white.opacity(0.14))
     }
 
     private func menuButton(_ sheet: HomeSheet, color: Color, icon: String, darkText: Bool = false) -> some View {
@@ -173,10 +258,10 @@ struct HomeView: View {
                     .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity, minHeight: 70)
-            .background(color.opacity(0.92), in: RoundedRectangle(cornerRadius: 14))
-            .foregroundStyle(darkText ? .black : .white)
+            .premiumGlass(cornerRadius: 18, tint: color.opacity(0.3), interactive: true)
+            .foregroundStyle(.white)
             .scaleEffect(sheet == .daily && shouldAnimateDailyButton ? 1.05 : 1)
-            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: shouldAnimateDailyButton)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: shouldAnimateDailyButton)
         }
         .accessibilityIdentifier("menuButton-\(sheet.rawValue)")
     }
@@ -222,6 +307,65 @@ struct HomeView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
             shouldAnimateDailyButton = true
             lastRewardCheckDate = todayString
+        }
+    }
+
+    private func refreshSavedRunState() {
+        guard let data = UserDefaults.standard.data(forKey: "savedRunSnapshot"),
+              let snapshot = try? JSONDecoder().decode(SavedRunSnapshot.self, from: data) else {
+            canResumeSavedRun = false
+            return
+        }
+        canResumeSavedRun = snapshot.isResumable
+    }
+}
+
+struct GameLaunch: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case new(GameMode)
+        case resume
+    }
+
+    let id = UUID()
+    let kind: Kind
+
+    static func new(_ mode: GameMode) -> GameLaunch {
+        GameLaunch(kind: .new(mode))
+    }
+
+    static var resume: GameLaunch {
+        GameLaunch(kind: .resume)
+    }
+}
+
+extension GameMode {
+    var iconName: String {
+        switch self {
+        case .classic: return "square.stack.3d.up.fill"
+        case .dailySafari: return "calendar.badge.clock"
+        case .timedStampede: return "timer"
+        case .zen: return "leaf.fill"
+        case .challenge: return "target"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .classic: return PremiumTheme.mint
+        case .dailySafari: return PremiumTheme.gold
+        case .timedStampede: return PremiumTheme.coral
+        case .zen: return Color(red: 0.42, green: 0.86, blue: 0.97)
+        case .challenge: return PremiumTheme.violet
+        }
+    }
+
+    var shortDescription: String {
+        switch self {
+        case .classic: return "Endless tower"
+        case .dailySafari: return "Shared daily seed"
+        case .timedStampede: return "Two-minute rush"
+        case .zen: return "No fail line"
+        case .challenge: return "Goal run"
         }
     }
 }

@@ -2,6 +2,7 @@ import SpriteKit
 
 final class GameScene: SKScene, SKPhysicsContactDelegate {
     weak var gameDelegate: GameSceneDelegate?
+    private(set) var gameMode: GameMode = .classic
 
     private var mergeComboCounter = 0
     private var mergeComboTimer: Timer?
@@ -62,13 +63,19 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         mergeComboTimer = nil
 
         physicsWorld.contactDelegate = self
-        physicsWorld.gravity = CGVector(dx: 0, dy: AppMetrics.gravityForce)
+        physicsWorld.gravity = gravityVector(for: gameMode)
 
         rebuildBoundaries()
     }
 
-    func addAnimal(animal: Animal, atX xPosition: CGFloat, yPosition: CGFloat? = nil, isMergeResult: Bool = false) {
-        guard !gameOverTriggered else { return }
+    func configure(mode: GameMode) {
+        gameMode = mode
+        physicsWorld.gravity = gravityVector(for: mode)
+    }
+
+    @discardableResult
+    func addAnimal(animal: Animal, atX xPosition: CGFloat, yPosition: CGFloat? = nil, isMergeResult: Bool = false) -> SKSpriteNode? {
+        guard !gameOverTriggered else { return nil }
 
         let texture = SKTexture(imageNamed: animal.imageName)
         let sprite = SKSpriteNode(texture: texture)
@@ -109,7 +116,9 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         ]
 
         addChild(sprite)
+        addAnimalOverlays(to: sprite, animal: animal, animalSize: animalSize)
         animateDropSquash(sprite)
+        return sprite
     }
 
     func didBegin(_ contact: SKPhysicsContact) {
@@ -200,6 +209,38 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         setupPhysics()
     }
 
+    func snapshotAnimalStates() -> [SavedRunAnimalState] {
+        animalNodes().compactMap { node in
+            guard let animal = node.userData?["animal"] as? Animal else { return nil }
+            return SavedRunAnimalState(
+                animalName: animal.name,
+                x: node.position.x,
+                y: node.position.y,
+                rotation: node.zRotation,
+                velocityDX: node.physicsBody?.velocity.dx ?? 0,
+                velocityDY: node.physicsBody?.velocity.dy ?? 0,
+                angularVelocity: node.physicsBody?.angularVelocity ?? 0
+            )
+        }
+    }
+
+    func restoreAnimalStates(_ animalStates: [SavedRunAnimalState]) {
+        animalNodes().forEach { $0.removeFromParent() }
+        gameOverTriggered = false
+        shouldRecordFrames = true
+        stackOverLineStartedAt = nil
+
+        for animalState in animalStates {
+            guard let animal = AnimalLibrary.getAnimal(byName: animalState.animalName),
+                  let node = addAnimal(animal: animal, atX: animalState.x, yPosition: animalState.y) else {
+                continue
+            }
+            node.zRotation = animalState.rotation
+            node.physicsBody?.velocity = CGVector(dx: animalState.velocityDX, dy: animalState.velocityDY)
+            node.physicsBody?.angularVelocity = animalState.angularVelocity
+        }
+    }
+
     func playReviveSound() {
         run(SKAction.playSoundFileNamed("revive.wav", waitForCompletion: false))
     }
@@ -267,6 +308,19 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         max(size.height * 0.62, size.height - safeAreaInsets.top - foulLineTopOffset)
     }
 
+    private func gravityVector(for mode: GameMode) -> CGVector {
+        let multiplier: CGFloat
+        switch mode {
+        case .classic, .dailySafari, .challenge:
+            multiplier = 1.0
+        case .timedStampede:
+            multiplier = 1.12
+        case .zen:
+            multiplier = 0.72
+        }
+        return CGVector(dx: 0, dy: AppMetrics.gravityForce * multiplier)
+    }
+
     private func captureFrameIfNeeded() {
         guard shouldRecordFrames else { return }
         frameCaptureCounter += 1
@@ -282,7 +336,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func checkForGameOver(currentTime: TimeInterval) {
-        guard !gameOverTriggered else { return }
+        guard gameMode.allowsGameOver, !gameOverTriggered else { return }
 
         let settledAboveLine = animalNodes().contains { node in
             guard let body = node.physicsBody else { return false }
@@ -312,13 +366,203 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         let scaleDown = SKAction.scale(to: CGSize(width: originalSize.width * 1.16, height: originalSize.height * 0.84), duration: 0.08)
         let scaleUp = SKAction.scale(to: CGSize(width: originalSize.width * 0.92, height: originalSize.height * 1.08), duration: 0.08)
         let scaleNormal = SKAction.scale(to: originalSize, duration: 0.12)
-        sprite.run(.sequence([scaleDown, scaleUp, scaleNormal]))
+        sprite.run(.sequence([scaleDown, scaleUp, scaleNormal, .run { [weak sprite] in
+            self.startIdleMotion(on: sprite)
+        }]))
+    }
+
+    private func startIdleMotion(on sprite: SKSpriteNode?) {
+        guard let sprite else { return }
+        sprite.removeAction(forKey: "idle-breathe")
+        let inhale = SKAction.scaleX(to: 1.025, y: 0.985, duration: 1.15)
+        inhale.timingMode = .easeInEaseOut
+        let exhale = SKAction.scaleX(to: 0.99, y: 1.015, duration: 1.05)
+        exhale.timingMode = .easeInEaseOut
+        let settle = SKAction.scale(to: 1.0, duration: 0.28)
+        let wait = SKAction.wait(forDuration: Double.random(in: 0.05...0.45))
+        sprite.run(.sequence([wait, .repeatForever(.sequence([inhale, exhale, settle]))]), withKey: "idle-breathe")
+    }
+
+    private func addAnimalOverlays(to sprite: SKSpriteNode, animal: Animal, animalSize: CGFloat) {
+        let rarity = animal.rarity
+
+        let cheekGlow = SKSpriteNode(texture: SKTexture(imageNamed: "animal_cheek_glow_overlay"))
+        cheekGlow.size = CGSize(width: animalSize * 0.72, height: animalSize * 0.42)
+        cheekGlow.position = CGPoint(x: 0, y: animalSize * 0.04)
+        cheekGlow.zPosition = 3
+        cheekGlow.alpha = 0.44
+        sprite.addChild(cheekGlow)
+        cheekGlow.run(.repeatForever(.sequence([
+            .fadeAlpha(to: 0.24, duration: 1.2),
+            .fadeAlpha(to: 0.52, duration: 1.2)
+        ])))
+
+        let sparkle = SKSpriteNode(texture: SKTexture(imageNamed: "animal_eye_sparkle_overlay"))
+        sparkle.size = CGSize(width: animalSize * 0.54, height: animalSize * 0.2)
+        sparkle.position = CGPoint(x: 0, y: animalSize * 0.2)
+        sparkle.zPosition = 6
+        sparkle.alpha = rarity == .legendary || rarity == .mythical ? 0.78 : 0.38
+        sprite.addChild(sparkle)
+        sparkle.run(.repeatForever(.sequence([
+            .scale(to: 1.08, duration: 0.9),
+            .scale(to: 0.94, duration: 0.9)
+        ])))
+
+        addEarNodes(to: sprite, animal: animal, animalSize: animalSize)
+        addTailNode(to: sprite, animal: animal, animalSize: animalSize)
+
+        let eyeWidth = max(4, animalSize * 0.075)
+        let eyeHeight = max(5, animalSize * 0.1)
+        let eyeY = animalSize * 0.16
+        let eyeX = animalSize * 0.15
+
+        let leftEye = makeEyeNode(size: CGSize(width: eyeWidth, height: eyeHeight))
+        leftEye.position = CGPoint(x: -eyeX, y: eyeY)
+        let rightEye = makeEyeNode(size: CGSize(width: eyeWidth, height: eyeHeight))
+        rightEye.position = CGPoint(x: eyeX, y: eyeY)
+        sprite.addChild(leftEye)
+        sprite.addChild(rightEye)
+
+        runBlink(on: leftEye, delay: Double.random(in: 1.0...2.0))
+        runBlink(on: rightEye, delay: Double.random(in: 1.0...2.0))
+
+        if rarity == .legendary || rarity == .mythical {
+            let halo = SKShapeNode(circleOfRadius: animalSize * 0.54)
+            halo.name = "rarity-halo"
+            halo.strokeColor = rarity == .mythical ? .cyan.withAlphaComponent(0.45) : .yellow.withAlphaComponent(0.42)
+            halo.lineWidth = 2
+            halo.glowWidth = 5
+            halo.zPosition = -1
+            sprite.addChild(halo)
+            halo.run(.repeatForever(.sequence([
+                .fadeAlpha(to: 0.28, duration: 0.8),
+                .fadeAlpha(to: 0.72, duration: 0.8)
+            ])))
+        }
+    }
+
+    private func addEarNodes(to sprite: SKSpriteNode, animal: Animal, animalSize: CGFloat) {
+        guard animal.name != "Penguin" else { return }
+
+        let earColor = uiColor(for: animal.rarity).withAlphaComponent(0.82)
+        for side in [-1.0, 1.0] {
+            let ear = SKShapeNode(ellipseOf: CGSize(width: animalSize * 0.2, height: animalSize * 0.28))
+            ear.name = "idle-ear"
+            ear.fillColor = earColor
+            ear.strokeColor = .white.withAlphaComponent(0.18)
+            ear.lineWidth = 1
+            ear.position = CGPoint(x: CGFloat(side) * animalSize * 0.24, y: animalSize * 0.34)
+            ear.zRotation = CGFloat(side) * 0.32
+            ear.zPosition = 1
+            sprite.addChild(ear)
+
+            let flapOut = SKAction.rotate(toAngle: CGFloat(side) * 0.56, duration: Double.random(in: 0.18...0.28), shortestUnitArc: true)
+            flapOut.timingMode = .easeOut
+            let flapIn = SKAction.rotate(toAngle: CGFloat(side) * 0.28, duration: Double.random(in: 0.2...0.32), shortestUnitArc: true)
+            flapIn.timingMode = .easeInEaseOut
+            ear.run(.repeatForever(.sequence([
+                .wait(forDuration: Double.random(in: 1.4...3.1)),
+                flapOut,
+                flapIn,
+                .wait(forDuration: Double.random(in: 1.2...2.6))
+            ])), withKey: "ear-flap")
+        }
+    }
+
+    private func addTailNode(to sprite: SKSpriteNode, animal: Animal, animalSize: CGFloat) {
+        guard !["Penguin", "Elephant"].contains(animal.name) else { return }
+
+        let tail = SKShapeNode(rectOf: CGSize(width: animalSize * 0.34, height: animalSize * 0.09), cornerRadius: animalSize * 0.045)
+        tail.name = "idle-tail"
+        tail.fillColor = uiColor(for: animal.rarity).withAlphaComponent(0.72)
+        tail.strokeColor = .white.withAlphaComponent(0.18)
+        tail.lineWidth = 1
+        tail.position = CGPoint(x: -animalSize * 0.43, y: -animalSize * 0.04)
+        tail.zRotation = -0.28
+        tail.zPosition = 0
+        sprite.addChild(tail)
+
+        let wagLeft = SKAction.rotate(toAngle: -0.72, duration: Double.random(in: 0.16...0.22), shortestUnitArc: true)
+        wagLeft.timingMode = .easeOut
+        let wagRight = SKAction.rotate(toAngle: 0.22, duration: Double.random(in: 0.16...0.22), shortestUnitArc: true)
+        wagRight.timingMode = .easeInEaseOut
+        tail.run(.repeatForever(.sequence([
+            .wait(forDuration: Double.random(in: 0.5...1.5)),
+            wagLeft,
+            wagRight,
+            wagLeft,
+            .rotate(toAngle: -0.28, duration: 0.16, shortestUnitArc: true),
+            .wait(forDuration: Double.random(in: 1.2...2.5))
+        ])), withKey: "tail-wag")
+    }
+
+    private func makeEyeNode(size: CGSize) -> SKShapeNode {
+        let eye = SKShapeNode(ellipseOf: size)
+        eye.name = "blink-eye"
+        eye.fillColor = .black.withAlphaComponent(0.72)
+        eye.strokeColor = .white.withAlphaComponent(0.2)
+        eye.lineWidth = 1
+        eye.zPosition = 4
+
+        let shine = SKShapeNode(circleOfRadius: max(1.2, size.width * 0.22))
+        shine.fillColor = .white.withAlphaComponent(0.78)
+        shine.strokeColor = .clear
+        shine.position = CGPoint(x: size.width * 0.16, y: size.height * 0.12)
+        shine.zPosition = 5
+        eye.addChild(shine)
+        return eye
+    }
+
+    private func runBlink(on eye: SKNode, delay: TimeInterval) {
+        let close = SKAction.scaleY(to: 0.08, duration: 0.055)
+        close.timingMode = .easeIn
+        let open = SKAction.scaleY(to: 1.0, duration: 0.075)
+        open.timingMode = .easeOut
+        let blink = SKAction.sequence([close, .wait(forDuration: 0.055), open])
+        let loop = SKAction.repeatForever(.sequence([
+            .wait(forDuration: delay),
+            blink,
+            .wait(forDuration: Double.random(in: 2.1...4.4))
+        ]))
+        eye.run(loop, withKey: "blink")
     }
 
     private func addMergeEffect(at position: CGPoint, for animal: Animal) {
         let isRare = animal.rarity == .legendary || animal.rarity == .mythical
+        let glow = SKSpriteNode(texture: SKTexture(imageNamed: "fx_merge_glow_ring"))
+        glow.position = position
+        glow.size = CGSize(width: isRare ? 190 : 130, height: isRare ? 190 : 130)
+        glow.zPosition = 88
+        glow.alpha = isRare ? 0.82 : 0.58
+        addChild(glow)
+        glow.run(.sequence([
+            .group([
+                .scale(to: 1.55, duration: 0.34),
+                .fadeOut(withDuration: 0.34),
+                .rotate(byAngle: .pi / 2, duration: 0.34)
+            ]),
+            .removeFromParent()
+        ]))
+
+        let ribbons = SKEmitterNode()
+        ribbons.particleTexture = SKTexture(imageNamed: "fx_merge_ribbons")
+        ribbons.particleBirthRate = isRare ? 420 : 260
+        ribbons.numParticlesToEmit = isRare ? 24 : 14
+        ribbons.particleLifetime = 0.55
+        ribbons.particleSpeed = isRare ? 190 : 126
+        ribbons.particleSpeedRange = 70
+        ribbons.emissionAngleRange = .pi * 2
+        ribbons.particleScale = isRare ? 0.22 : 0.14
+        ribbons.particleScaleRange = 0.08
+        ribbons.particleAlpha = 0.86
+        ribbons.particleAlphaSpeed = -1.25
+        ribbons.position = position
+        ribbons.zPosition = 89
+        addChild(ribbons)
+        ribbons.run(.sequence([.wait(forDuration: 0.85), .removeFromParent()]))
+
         let emitter = SKEmitterNode()
-        emitter.particleTexture = SKTexture(imageNamed: isRare ? "vfx_merge_legendary" : "vfx_merge_pop")
+        emitter.particleTexture = SKTexture(imageNamed: isRare ? "fx_sparkle_cluster" : "fx_soft_gold_particle")
         emitter.particleBirthRate = isRare ? 1400 : 800
         emitter.numParticlesToEmit = isRare ? 38 : 22
         emitter.particleLifetime = isRare ? 0.7 : 0.45
@@ -382,5 +626,15 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
     private func animalNodes() -> [SKNode] {
         children.filter { $0.physicsBody?.categoryBitMask == PhysicsCategory.animal }
+    }
+
+    private func uiColor(for rarity: Rarity) -> UIColor {
+        switch rarity {
+        case .common: return UIColor(red: 0.86, green: 0.92, blue: 0.90, alpha: 1)
+        case .rare: return UIColor(red: 0.40, green: 0.82, blue: 1.0, alpha: 1)
+        case .epic: return UIColor(red: 0.72, green: 0.52, blue: 1.0, alpha: 1)
+        case .legendary: return UIColor(red: 1.0, green: 0.82, blue: 0.22, alpha: 1)
+        case .mythical: return UIColor(red: 0.34, green: 0.96, blue: 0.78, alpha: 1)
+        }
     }
 }

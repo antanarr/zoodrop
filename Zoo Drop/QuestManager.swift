@@ -3,8 +3,15 @@ import SwiftUI
 
 enum QuestEvent {
     case animalDropped(name: String)
+    case animalMerged(from: String, into: String, combo: Int, mode: GameMode)
     case scoreAchieved(Int)
     case dropSurvived
+    case comboReached(Int)
+    case rarityCreated(Rarity)
+    case modePlayed(GameMode)
+    case runFinished(mode: GameMode, score: Int, drops: Int, merges: Int)
+    case tutorialStepCompleted(TutorialStep)
+    case challengeCompleted(id: String, score: Int)
 }
 
 @MainActor
@@ -40,6 +47,10 @@ class QuestManager: ObservableObject {
                 if case .dropSpecificAnimal(let requiredName, _) = quest.type, name == requiredName {
                     quest.progress += 1
                 }
+            case .animalMerged(_, let newName, _, _):
+                if case .dropSpecificAnimal(let requiredName, _) = quest.type, newName == requiredName {
+                    quest.progress += 1
+                }
             case .scoreAchieved(let score):
                 if case .reachScore(_) = quest.type {
                     quest.progress = max(quest.progress, score)
@@ -47,6 +58,37 @@ class QuestManager: ObservableObject {
             case .dropSurvived:
                 if case .surviveDrops(_) = quest.type {
                     quest.progress += 1
+                }
+            case .comboReached(let combo):
+                if case .surviveDrops(_) = quest.type, combo >= 3 {
+                    quest.progress += combo
+                }
+            case .rarityCreated(let rarity):
+                if rarity == .legendary || rarity == .mythical,
+                   case .surviveDrops(_) = quest.type {
+                    quest.progress += 5
+                }
+            case .modePlayed(let mode):
+                if mode == .dailySafari || mode == .challenge,
+                   case .surviveDrops(_) = quest.type {
+                    quest.progress += 1
+                }
+            case .runFinished(_, let score, let drops, let merges):
+                switch quest.type {
+                case .reachScore:
+                    quest.progress = max(quest.progress, score)
+                case .surviveDrops:
+                    quest.progress += max(drops, merges)
+                case .dropSpecificAnimal:
+                    break
+                }
+            case .tutorialStepCompleted:
+                if case .surviveDrops(_) = quest.type {
+                    quest.progress += 1
+                }
+            case .challengeCompleted(_, let score):
+                if case .reachScore(_) = quest.type {
+                    quest.progress = max(quest.progress, score)
                 }
             }
             
@@ -110,7 +152,11 @@ class QuestManager: ObservableObject {
             Quest(id: "score_1k", title: "Novice Stacker", description: "Reach a score of 1,000 points.", type: .reachScore(1000), reward: 10),
             Quest(id: "drop_penguin_5", title: "Penguin Parade", description: "Drop 5 Penguins.", type: .dropSpecificAnimal(name: "Penguin", count: 5), reward: 12),
             Quest(id: "survive_20_drops", title: "Careful Keeper", description: "Make 20 drops in one day.", type: .surviveDrops(20), reward: 15),
-            Quest(id: "score_5k", title: "Tower Tamer", description: "Reach a score of 5,000 points.", type: .reachScore(5000), reward: 25)
+            Quest(id: "score_5k", title: "Tower Tamer", description: "Reach a score of 5,000 points.", type: .reachScore(5000), reward: 25),
+            Quest(id: "create_panda_2", title: "Panda Pair", description: "Create 2 Pandas from merges.", type: .dropSpecificAnimal(name: "Panda", count: 2), reward: 18),
+            Quest(id: "create_lion_1", title: "Lion Keeper", description: "Create a Lion from merges.", type: .dropSpecificAnimal(name: "Lion", count: 1), reward: 30),
+            Quest(id: "activity_50", title: "Safari Shift", description: "Build momentum through drops, combos, or special runs.", type: .surviveDrops(50), reward: 28),
+            Quest(id: "score_10k", title: "Habitat Hero", description: "Reach a score of 10,000 points.", type: .reachScore(10000), reward: 45)
         ]
     }
 }
