@@ -73,6 +73,9 @@
 		59E56B642E249137006176C8 /* revive.wav in Resources */ = {isa = PBXBuildFile; fileRef = 59E56B632E249137006176C8 /* revive.wav */; };
 		59E56B662E2493DD006176C8 /* ambientloop.wav in Resources */ = {isa = PBXBuildFile; fileRef = 59E56B652E2493DD006176C8 /* ambientloop.wav */; };
 		59E56B682E249836006176C8 /* zoo_theme.wav in Resources */ = {isa = PBXBuildFile; fileRef = 59E56B672E249836006176C8 /* zoo_theme.wav */; };
+		59E56B6A2E2AAAAA006176C8 /* merge_combo.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 59E56B692E2AAAAA006176C8 /* merge_combo.mp3 */; };
+		59E56B6C2E2AAAAB006176C8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 59E56B6B2E2AAAAB006176C8 /* PrivacyInfo.xcprivacy */; };
+		59E56B6F2E2AAAAD006176C8 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 59E56B702E2AAAAD006176C8 /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -162,6 +165,10 @@
 		59E56B632E249137006176C8 /* revive.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = revive.wav; sourceTree = "<group>"; };
 		59E56B652E2493DD006176C8 /* ambientloop.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = ambientloop.wav; sourceTree = "<group>"; };
 		59E56B672E249836006176C8 /* zoo_theme.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = zoo_theme.wav; sourceTree = "<group>"; };
+		59E56B692E2AAAAA006176C8 /* merge_combo.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = merge_combo.mp3; sourceTree = "<group>"; };
+		59E56B6B2E2AAAAB006176C8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		59E56B6D2E2AAAAC006176C8 /* ZooDrop.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = ZooDrop.storekit; sourceTree = "<group>"; };
+		59E56B702E2AAAAD006176C8 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -212,6 +219,7 @@
 				59E56B632E249137006176C8 /* revive.wav */,
 				59E56B652E2493DD006176C8 /* ambientloop.wav */,
 				59E56B672E249836006176C8 /* zoo_theme.wav */,
+				59E56B692E2AAAAA006176C8 /* merge_combo.mp3 */,
 			);
 			path = Sounds;
 			sourceTree = "<group>";
@@ -220,6 +228,8 @@
 			isa = PBXGroup;
 			children = (
 				59E56B452E1F2FEA006176C8 /* Info.plist */,
+				59E56B6B2E2AAAAB006176C8 /* PrivacyInfo.xcprivacy */,
+				59E56B702E2AAAAD006176C8 /* LaunchScreen.storyboard */,
 				594970EE2E1EDA49004F4BC1 /* AdManager.swift */,
 				594970EF2E1EDA49004F4BC1 /* AnimalLibrary.swift */,
 				594970F02E1EDA49004F4BC1 /* AppColors.swift */,
@@ -288,6 +298,7 @@
 		596EF6B52E16C25E00403198 = {
 			isa = PBXGroup;
 			children = (
+				59E56B6E2E2AAAAD006176C8 /* StoreKit */,
 				594970EC2E1EDA49004F4BC1 /* Sounds */,
 				594971172E1EDA49004F4BC1 /* Zoo Drop */,
 				596EF6BF2E16C25E00403198 /* Products */,
@@ -313,6 +324,14 @@
 				59E56B3D2E1EE078006176C8 /* XCTest.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		59E56B6E2E2AAAAD006176C8 /* StoreKit */ = {
+			isa = PBXGroup;
+			children = (
+				59E56B6D2E2AAAAC006176C8 /* ZooDrop.storekit */,
+			);
+			path = StoreKit;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -439,9 +458,12 @@
 				59E56B662E2493DD006176C8 /* ambientloop.wav in Resources */,
 				59E56B642E249137006176C8 /* revive.wav in Resources */,
 				594971242E1EDA49004F4BC1 /* gameover.mp3 in Resources */,
+				59E56B6A2E2AAAAA006176C8 /* merge_combo.mp3 in Resources */,
 				594971252E1EDA49004F4BC1 /* unlock.mp3 in Resources */,
 				594971262E1EDA49004F4BC1 /* Assets.xcassets in Resources */,
 				59E56B5C2E247CC1006176C8 /* thud.wav in Resources */,
+				59E56B6C2E2AAAAB006176C8 /* PrivacyInfo.xcprivacy in Resources */,
+				59E56B6F2E2AAAAD006176C8 /* LaunchScreen.storyboard in Resources */,
 				59E56B682E249836006176C8 /* zoo_theme.wav in Resources */,
 				594971272E1EDA49004F4BC1 /* subscribe.mp3 in Resources */,
 				594971282E1EDA49004F4BC1 /* legendary.mp3 in Resources */,
@@ -781,7 +803,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "Zoo DropUITests";
+				TEST_TARGET_NAME = "Zoo Drop";
 			};
 			name = Debug;
 		};
@@ -798,7 +820,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "Zoo DropUITests";
+				TEST_TARGET_NAME = "Zoo Drop";
 			};
 			name = Release;
 		};

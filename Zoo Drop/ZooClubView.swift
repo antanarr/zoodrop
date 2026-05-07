@@ -58,9 +58,12 @@ struct ZooClubView: View {
                             subscriptionButton
                                 .accessibilityAddTraits(subscriptionManager.isSubscribed ? .isSelected : [])
                                 .accessibilityLabel(subscriptionManager.isSubscribed ? "Subscribed" : "Subscribe now")
+
+                            legalLinks
                         } else {
                             Text("Subscription product not available.")
                                 .multilineTextAlignment(.center)
+                            legalLinks
                         }
                         
                         if subscriptionManager.isSubscribed && subscriptionManager.canClaimDailyGoldenEgg {
@@ -223,19 +226,33 @@ struct ZooClubView: View {
         .padding(.horizontal)
     }
 
+    var legalLinks: some View {
+        VStack(spacing: 8) {
+            Text("Zoo Club renews monthly until cancelled in App Store settings.")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            HStack {
+                NavigationLink("Privacy") { PrivacyPolicyView() }
+                Text("•")
+                NavigationLink("Terms") { TermsOfUseView() }
+                Text("•")
+                NavigationLink("Subscription") { SubscriptionTermsView() }
+            }
+            .font(.footnote.weight(.semibold))
+        }
+        .padding(.horizontal)
+    }
+
     // MARK: - StoreKit Functions
     func loadProducts() async {
-        do {
-            let allProductIDs = [subscriptionManager.subscriptionProductID] + subscriptionManager.eggPackProductIDs
-            let products = try await Product.products(for: allProductIDs)
-            
-            // Separate the products into subscription and IAPs
-            self.subscriptionProduct = products.first(where: { $0.id == subscriptionManager.subscriptionProductID })
-            self.iapProducts = products.filter { subscriptionManager.eggPackProductIDs.contains($0.id) }
-            
-        } catch {
-            print("❌ Failed to load products: \(error)")
-        }
+        await subscriptionManager.loadProducts()
+        let products = subscriptionManager.availableProducts
+        self.subscriptionProduct = products.first(where: { $0.id == subscriptionManager.subscriptionProductID })
+        self.iapProducts = products
+            .filter { subscriptionManager.eggPackProductIDs.contains($0.id) }
+            .sorted { $0.displayPrice < $1.displayPrice }
         isLoading = false
     }
 
@@ -243,18 +260,24 @@ struct ZooClubView: View {
     /// Displays appropriate success or error messages and triggers related animations and sounds.
     func purchase(_ product: Product) async {
         do {
-            try await subscriptionManager.purchase(product)
-            
-            if product.type == .autoRenewable {
+            let outcome = try await subscriptionManager.purchase(product)
+
+            switch outcome {
+            case .success where product.type == .autoRenewable:
                 purchaseMessage = "Thank you for subscribing to Zoo Club!"
                 showSubscribeConfetti = true
                 soundManager.playSubscribeSound()
-            } else {
+                showingPurchaseAlert = true
+            case .success:
                 purchaseMessage = "Purchase successful! Your Golden Eggs have been added."
                 showConfetti = true
+                showingPurchaseAlert = true
+            case .pending:
+                purchaseMessage = "Purchase pending. The App Store will finish it when approval or payment completes."
+                showingPurchaseAlert = true
+            case .userCancelled:
+                return
             }
-            showingPurchaseAlert = true
-            
         } catch {
             // Handle purchase errors gracefully
             purchaseMessage = "Purchase failed: \(error.localizedDescription)"

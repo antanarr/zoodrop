@@ -86,5 +86,5 @@ struct QuestRowView: View {
 
 #Preview {
     QuestsView()
-        .environmentObject(QuestManager(soundManager: SoundManager())) // For previewing purposes
+        .environmentObject(QuestManager(soundManager: SoundManager(), subscriptionManager: SubscriptionManager()))
 }

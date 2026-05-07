@@ -2,7 +2,6 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 
-// 1. ADDED MYTHICAL RARITY: A new, higher tier for exclusive animals.
 enum Rarity: String, Codable, CaseIterable {
     case common, rare, epic, legendary, mythical
 }
@@ -25,9 +24,11 @@ struct Animal: Identifiable, Hashable, Codable {
     let friction: CGFloat
     let restitution: CGFloat
     
-    
-    // 2. ADDED EXCLUSIVITY FLAG: This flag identifies subscriber-only content.
     let isSubscriberExclusive: Bool?
+
+    var unlockThreshold: Int {
+        max(0, scoreValue)
+    }
 }
 
 extension Rarity {
@@ -37,8 +38,7 @@ extension Rarity {
         case .rare: return .blue
         case .epic: return .purple
         case .legendary: return .yellow
-        // 3. ADDED MYTHICAL COLOR: A distinct color for the new rarity.
-        case .mythical: return Color(red: 0.4, green: 0.9, blue: 0.8) // A shimmering cyan/teal
+        case .mythical: return Color(red: 0.4, green: 0.9, blue: 0.8)
         }
     }
 }

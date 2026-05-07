@@ -1,0 +1,86 @@
+{
+  "identifier": "ZooDrop.storekit",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "4.99",
+      "familyShareable": false,
+      "internalID": "zooclub.monthly",
+      "localizations": [
+        {
+          "description": "Removes ads, adds a score bonus, daily Golden Eggs, and exclusive mythical animals.",
+          "displayName": "Zoo Club Monthly",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.yourskinmatters.zoodrop.zooclub.monthly",
+      "referenceName": "Zoo Club Monthly",
+      "subscriptionGroupID": "zoodrop.zooclub",
+      "subscriptionPeriod": "P1M",
+      "type": "AutoRenewableSubscription"
+    },
+    {
+      "displayPrice": "0.99",
+      "familyShareable": false,
+      "internalID": "eggs.small",
+      "localizations": [
+        {
+          "description": "Adds 100 Golden Eggs.",
+          "displayName": "Small Golden Egg Pack",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.yourskinmatters.zoodrop.eggs.small",
+      "referenceName": "Small Golden Egg Pack",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "3.99",
+      "familyShareable": false,
+      "internalID": "eggs.medium",
+      "localizations": [
+        {
+          "description": "Adds 550 Golden Eggs.",
+          "displayName": "Medium Golden Egg Pack",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.yourskinmatters.zoodrop.eggs.medium",
+      "referenceName": "Medium Golden Egg Pack",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "7.99",
+      "familyShareable": false,
+      "internalID": "eggs.large",
+      "localizations": [
+        {
+          "description": "Adds 1200 Golden Eggs.",
+          "displayName": "Large Golden Egg Pack",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.yourskinmatters.zoodrop.eggs.large",
+      "referenceName": "Large Golden Egg Pack",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_storeKitErrors": [],
+    "_subscriptionRenewalRate": 0.0,
+    "_useStoreKit2": true,
+    "storefront": "USA"
+  },
+  "subscriptionGroups": [
+    {
+      "id": "zoodrop.zooclub",
+      "localizations": [],
+      "name": "Zoo Club"
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

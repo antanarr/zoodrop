@@ -55,7 +55,7 @@ struct PauseMenu: View {
                 .accessibilityHint("Tap to exit the current game and return to the main menu")
             }
             .padding()
-            .background(Color("BackgroundColor"))
+            .background(.ultraThinMaterial)
             .cornerRadius(20)
             .padding(.horizontal, 40)
             .confirmationDialog("Are you sure you want to quit?", isPresented: $showingConfirmation, titleVisibility: .visible) {

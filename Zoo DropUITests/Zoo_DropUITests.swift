@@ -24,18 +24,36 @@ final class Zoo_DropUITests: XCTestCase {
 
     @MainActor
     func testExample() throws {
-        // UI tests must launch the application that they test.
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        let playButton = app.buttons["playButton"]
+        XCTAssertTrue(playButton.waitForExistence(timeout: 6))
+        playButton.tap()
+
+        XCTAssertTrue(app.staticTexts["gameScore"].waitForExistence(timeout: 5))
+
+        let gameSurface = app.otherElements["gameSurface"]
+        XCTAssertTrue(gameSurface.waitForExistence(timeout: 3))
+
+        let start = gameSurface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.18))
+        let end = gameSurface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+        start.press(forDuration: 0.08, thenDragTo: end)
+
+        XCTAssertTrue(app.staticTexts["gameScore"].waitForExistence(timeout: 3))
     }
 
     @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            makeApp().launch()
         }
+    }
+
+    private func makeApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_MODE"]
+        return app
     }
 }

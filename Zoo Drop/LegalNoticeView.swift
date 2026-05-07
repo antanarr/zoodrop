@@ -12,13 +12,19 @@ struct LegalNoticeView: View {
                     .accessibilityHint("Legal and copyright information about Zoo Drop")
 
                 Text("""
-                Zoo Drop is a trademark of Zoo Drop LLC. All content, including animal designs, logos, and gameplay mechanics, is protected under U.S. and international copyright laws.
+                Last updated: May 6, 2026
 
-                Unauthorized reproduction, distribution, or modification of this app or its assets is strictly prohibited.
+                Zoo Drop, its name, artwork, characters, game content, user interface, sounds, and other original materials are owned by Zoo Drop LLC or its licensors and are protected by applicable copyright, trademark, and other laws.
 
-                This app uses third-party services including but not limited to Apple Game Center, Google AdMob, and StoreKit. Their respective terms and conditions apply.
+                You may use the app only as permitted by the Terms of Use and Apple's App Store terms. Unauthorized copying, modification, distribution, public display, or commercial use of the app or its assets is prohibited.
 
-                © 2025 Zoo Drop LLC. All rights reserved.
+                Apple, App Store, Game Center, and StoreKit are trademarks or service marks of Apple Inc. Google AdMob is a trademark or service mark of Google LLC. All third-party names and marks belong to their respective owners.
+
+                Third-party services may be used to provide ads, consent, purchases, leaderboards, achievements, diagnostics, and platform features. Their own terms and privacy practices apply to those services.
+
+                Nothing in these notices grants rights to any Zoo Drop or third-party intellectual property except the limited right to use the app as installed from the App Store.
+
+                (c) 2026 Zoo Drop LLC. All rights reserved.
                 """)
                     .font(.body)
                     .multilineTextAlignment(.leading)

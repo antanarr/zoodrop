@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
+    @EnvironmentObject private var adManager: AdManager
     
     // Using AppStorage to persist user settings is a modern and efficient approach.
     @AppStorage("soundEnabled") private var soundEnabled = true
@@ -42,6 +43,12 @@ struct SettingsView: View {
                 NavigationLink("Privacy Policy", destination: PrivacyPolicyView())
                 NavigationLink("Terms of Use", destination: TermsOfUseView())
                 NavigationLink("Subscription Terms", destination: SubscriptionTermsView())
+
+                if adManager.privacyOptionsRequired {
+                    Button("Ad Privacy Options") {
+                        adManager.presentPrivacyOptions()
+                    }
+                }
             }
         }
         .navigationTitle("Settings")
@@ -51,7 +58,8 @@ struct SettingsView: View {
 #Preview {
     // Setting up a preview with necessary environment objects for accurate representation.
     NavigationView {
-        SettingsView()
-            .environmentObject(SubscriptionManager())
+            SettingsView()
+                .environmentObject(SubscriptionManager())
+                .environmentObject(AdManager())
     }
 }

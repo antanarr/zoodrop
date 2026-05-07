@@ -15,7 +15,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Color("BackgroundColor")
+            LinearGradient(colors: [.teal.opacity(0.45), .blue.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
 
             VStack(spacing: 30) {
@@ -57,6 +57,7 @@ struct OnboardingView: View {
                 }
                 .accessibilityLabel("Let's Go")
                 .accessibilityHint("Begin playing Zoo Drop")
+                .accessibilityIdentifier("onboardingStartButton")
             }
             .padding()
             .opacity(appear ? 1 : 0)

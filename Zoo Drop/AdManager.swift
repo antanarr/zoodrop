@@ -1,124 +1,208 @@
 import GoogleMobileAds
 import UIKit
+import UserMessagingPlatform
 
-// 1. REMOVED SINGLETON: This class is now instantiated in Zoo_DropApp.
 final class AdManager: NSObject, ObservableObject, FullScreenContentDelegate {
-    
+    @Published private(set) var isInitialized = false
+    @Published private(set) var canRequestAds = false
+    @Published private(set) var privacyOptionsRequired = false
+
     private var interstitial: InterstitialAd?
-    // 2. RESTORED PRODUCTION ID: Using your provided production Ad Unit ID.
-    private let interstitialAdUnitID = "ca-app-pub-8632219809769416/9900798870"
-
-    private var interstitialDidDismissFullScreenContentBlock: (() -> Void)?
-    private var lastInterstitialShowDate: Date?
-    // 3. REDUCED COOLDOWN: Reduced from 120 to 60 seconds as per strategy.
-    private let interstitialCooldown: TimeInterval = 60
-
     private var rewardedAd: RewardedAd?
-    // 2. RESTORED PRODUCTION ID: Using your provided production Ad Unit ID.
-    private let rewardedAdUnitID = "ca-app-pub-8632219809769416/1194127124"
-    
+    private var interstitialDidDismissFullScreenContentBlock: (() -> Void)?
     private var rewardedCompletion: ((Bool) -> Void)?
-    
-    // 4. PUBLIC INITIALIZER: The initializer is now public to allow instantiation.
-    override init() {
-        super.init()
-    }
-    
-    func initializeAndLoadAds() {
-        Task {
-            loadInterstitial()
-            loadRewardedAd()
+    private var lastInterstitialShowDate: Date?
+    private let interstitialCooldown: TimeInterval = 75
+    private var shouldServeAds = false
+    private var lastKnownSubscriptionStatus = false
+
+    #if DEBUG
+    private let interstitialAdUnitID = "ca-app-pub-3940256099942544/4411468910"
+    private let rewardedAdUnitID = "ca-app-pub-3940256099942544/1712485313"
+    #else
+    private let interstitialAdUnitID = "ca-app-pub-8632219809769416/9900798870"
+    private let rewardedAdUnitID = "ca-app-pub-8632219809769416/1194127124"
+    #endif
+
+    func configureAdsIfAllowed(isSubscribed: Bool) {
+        lastKnownSubscriptionStatus = isSubscribed
+
+        guard !isSubscribed,
+              !ProcessInfo.processInfo.arguments.contains("UITEST_MODE") else {
+            disableAds()
+            return
+        }
+
+        shouldServeAds = true
+
+        let parameters = RequestParameters()
+        parameters.isTaggedForUnderAgeOfConsent = false
+
+        ConsentInformation.shared.requestConsentInfoUpdate(with: parameters) { [weak self] error in
+            DispatchQueue.main.async {
+                if let error {
+                    print("AdManager: consent info update failed: \(error.localizedDescription)")
+                }
+
+                self?.privacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
+                ConsentForm.loadAndPresentIfRequired(from: UIViewController.findRootViewController()) { formError in
+                    DispatchQueue.main.async {
+                        if let formError {
+                            print("AdManager: consent form failed: \(formError.localizedDescription)")
+                        }
+
+                        self?.privacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
+                        self?.startAdsIfAllowed()
+                    }
+                }
+            }
         }
     }
-    
+
     func loadInterstitial() {
-        let request = Request()
-        InterstitialAd.load(with: interstitialAdUnitID, request: request) { [weak self] ad, error in
-            if let error = error {
-                print("Failed to load interstitial ad with error: \(error.localizedDescription)")
+        guard isInitialized, canRequestAds, shouldServeAds else { return }
+        InterstitialAd.load(with: interstitialAdUnitID, request: adRequest()) { [weak self] ad, error in
+            if let error {
+                print("Failed to load interstitial ad: \(error.localizedDescription)")
                 return
             }
             self?.interstitial = ad
             self?.interstitial?.fullScreenContentDelegate = self
-            print("✅ Interstitial ad loaded successfully")
         }
     }
 
     func loadRewardedAd() {
-        let request = Request()
-        RewardedAd.load(with: rewardedAdUnitID, request: request) { [weak self] ad, error in
-            if let error = error {
-                print("Failed to load rewarded ad with error: \(error.localizedDescription)")
+        guard isInitialized, canRequestAds, shouldServeAds else { return }
+        RewardedAd.load(with: rewardedAdUnitID, request: adRequest()) { [weak self] ad, error in
+            if let error {
+                print("Failed to load rewarded ad: \(error.localizedDescription)")
                 return
             }
             self?.rewardedAd = ad
             self?.rewardedAd?.fullScreenContentDelegate = self
-            print("✅ Rewarded ad loaded successfully")
         }
     }
-    
+
     func showInterstitial(from rootViewController: UIViewController, completion: @escaping () -> Void) {
-        let now = Date()
-        if let lastShow = lastInterstitialShowDate, now.timeIntervalSince(lastShow) < interstitialCooldown {
-            print("Interstitial skipped due to cooldown.")
+        guard shouldServeAds, canRequestAds else {
             completion()
             return
         }
 
-        if let ad = interstitial {
-            interstitialDidDismissFullScreenContentBlock = completion
-            ad.present(from: rootViewController)
-            lastInterstitialShowDate = now
-        } else {
-            print("Ad wasn't ready")
-            loadInterstitial() // Preload the next one
+        let now = Date()
+        if let lastShow = lastInterstitialShowDate, now.timeIntervalSince(lastShow) < interstitialCooldown {
             completion()
+            return
         }
+
+        guard let ad = interstitial else {
+            loadInterstitial()
+            completion()
+            return
+        }
+
+        interstitialDidDismissFullScreenContentBlock = completion
+        lastInterstitialShowDate = now
+        ad.present(from: rootViewController)
     }
-    
+
     func showRewardedAd(from rootViewController: UIViewController, completion: @escaping (Bool) -> Void) {
-        rewardedCompletion = completion
-        if let ad = rewardedAd {
-            ad.present(from: rootViewController) {
-                // This block is called when the user has earned the reward.
-                self.rewardedCompletion?(true)
-                self.rewardedCompletion = nil
-            }
-        } else {
-            print("Rewarded ad wasn't ready")
-            loadRewardedAd() // Preload the next one
+        guard shouldServeAds, canRequestAds else {
             completion(false)
+            return
+        }
+
+        rewardedCompletion = completion
+        guard let ad = rewardedAd else {
+            loadRewardedAd()
+            completion(false)
+            return
+        }
+
+        ad.present(from: rootViewController) { [weak self] in
+            self?.rewardedCompletion?(true)
+            self?.rewardedCompletion = nil
         }
     }
-    
-    // MARK: - GADFullScreenContentDelegate
-    
+
     func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
         if ad is InterstitialAd {
             interstitialDidDismissFullScreenContentBlock?()
             interstitialDidDismissFullScreenContentBlock = nil
-            loadInterstitial() // Preload the next one
-        } else if ad is RewardedAd {
-            // This is called when the ad is dismissed, regardless of reward.
-            // The reward is handled in the completion handler of the `present` method.
-            // If the user dismissed early, the completion handler might not have been called.
-            // We ensure it's called with `false`.
-            rewardedCompletion?(false)
-            rewardedCompletion = nil
-            loadRewardedAd() // Preload the next one
-        }
-    }
-    
-    func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
-        print("Ad failed to present with error: \(error.localizedDescription)")
-        if ad is InterstitialAd {
-            interstitialDidDismissFullScreenContentBlock?()
-            interstitialDidDismissFullScreenContentBlock = nil
+            interstitial = nil
             loadInterstitial()
         } else if ad is RewardedAd {
             rewardedCompletion?(false)
             rewardedCompletion = nil
+            rewardedAd = nil
             loadRewardedAd()
         }
+    }
+
+    func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        print("Ad failed to present: \(error.localizedDescription)")
+        if ad is InterstitialAd {
+            interstitialDidDismissFullScreenContentBlock?()
+            interstitialDidDismissFullScreenContentBlock = nil
+            interstitial = nil
+            loadInterstitial()
+        } else if ad is RewardedAd {
+            rewardedCompletion?(false)
+            rewardedCompletion = nil
+            rewardedAd = nil
+            loadRewardedAd()
+        }
+    }
+
+    func presentPrivacyOptions() {
+        ConsentForm.presentPrivacyOptionsForm(from: UIViewController.findRootViewController()) { [weak self] error in
+            DispatchQueue.main.async {
+                if let error {
+                    print("AdManager: privacy options unavailable: \(error.localizedDescription)")
+                }
+                self?.configureAdsIfAllowed(isSubscribed: self?.lastKnownSubscriptionStatus ?? false)
+            }
+        }
+    }
+
+    private func startAdsIfAllowed() {
+        guard shouldServeAds else { return }
+        guard ConsentInformation.shared.canRequestAds else {
+            canRequestAds = false
+            return
+        }
+
+        canRequestAds = true
+
+        guard !isInitialized else {
+            loadInterstitial()
+            loadRewardedAd()
+            return
+        }
+
+        MobileAds.shared.start { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.isInitialized = true
+                self?.loadInterstitial()
+                self?.loadRewardedAd()
+            }
+        }
+    }
+
+    private func disableAds() {
+        shouldServeAds = false
+        canRequestAds = false
+        interstitial = nil
+        rewardedAd = nil
+        interstitialDidDismissFullScreenContentBlock = nil
+        rewardedCompletion = nil
+    }
+
+    private func adRequest() -> Request {
+        let request = Request()
+        let extras = Extras()
+        extras.additionalParameters = ["npa": "1"]
+        request.register(extras)
+        return request
     }
 }

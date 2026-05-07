@@ -1,260 +1,386 @@
 import SpriteKit
 
-// The GameSceneDelegate protocol has been moved to its own file.
-class GameScene: SKScene, SKPhysicsContactDelegate {
-    
+final class GameScene: SKScene, SKPhysicsContactDelegate {
     weak var gameDelegate: GameSceneDelegate?
-    
+
     private var mergeComboCounter = 0
     private var mergeComboTimer: Timer?
     private var safeAreaInsets: UIEdgeInsets = .zero
-    
+    private var gameOverTriggered = false
+    private var stackOverLineStartedAt: TimeInterval?
+    private var lastUpdateTime: TimeInterval = 0
+
     private var frameBuffer = [SKTexture]()
-    private let frameBufferSize = 100
+    private let frameBufferSize = 18
     private var shouldRecordFrames = true
     private var frameCaptureCounter = 0
-    private let frameCaptureInterval = 3
-    
-    private let standardMergeEmitter: SKEmitterNode = {
-        let node = SKEmitterNode()
-        node.particleTexture = SKTexture(imageNamed: "vfx_merge_pop")
-        node.particleBirthRate = 1000
-        node.numParticlesToEmit = 15
-        node.particleLifetime = 0.5
-        node.particleSpeed = 150
-        node.particleSpeedRange = 50
-        node.emissionAngleRange = .pi * 2
-        node.particleScale = 0.2
-        node.particleScaleRange = 0.1
-        node.particleAlpha = 0.8
-        node.particleAlphaSpeed = -1.5
-        return node
-    }()
-    
-    private let legendaryMergeEmitter: SKEmitterNode = {
-        let node = SKEmitterNode()
-        node.particleTexture = SKTexture(imageNamed: "vfx_merge_legendary")
-        node.particleBirthRate = 2000
-        node.numParticlesToEmit = 40
-        node.particleLifetime = 0.75
-        node.particleSpeed = 250
-        node.particleSpeedRange = 100
-        node.emissionAngleRange = .pi * 2
-        node.particleScale = 0.3
-        node.particleScaleRange = 0.15
-        node.particleColor = .yellow
-        node.particleColorBlendFactor = 0.8
-        node.particleAlpha = 0.9
-        node.particleAlphaSpeed = -1.0
-        return node
-    }()
-    
+    private let frameCaptureInterval = 15
+
+    private let playfieldInset: CGFloat = 24
+    private let groundHeight: CGFloat = 42
+    private let foulLineTopOffset: CGFloat = 210
+
     struct PhysicsCategory {
         static let none: UInt32 = 0
         static let animal: UInt32 = 0x1 << 0
         static let ground: UInt32 = 0x1 << 1
-        static let foulLine: UInt32 = 0x1 << 2
-        static let wall: UInt32 = 0x1 << 3
-    }
-    
-    override func didMove(to view: SKView) {
-        self.safeAreaInsets = view.safeAreaInsets
-        run(SKAction.playSoundFileNamed("ambientloop.wav", waitForCompletion: false))
-    }
-    
-    override func update(_ currentTime: TimeInterval) {
-        super.update(currentTime)
-        guard shouldRecordFrames else { return }
-        frameCaptureCounter += 1
-        if frameCaptureCounter >= frameCaptureInterval {
-            frameCaptureCounter = 0
-            if let view = self.view, let texture = view.texture(from: self) {
-                frameBuffer.append(texture)
-                if frameBuffer.count > frameBufferSize {
-                    frameBuffer.removeFirst()
-                }
-            }
-        }
-    }
-    
-    func setupPhysics() {
-        guard size != .zero else { return }
-        frameBuffer.removeAll()
-        shouldRecordFrames = true
-        self.removeAllChildren()
-        physicsWorld.contactDelegate = self
-        physicsWorld.gravity = CGVector(dx: 0, dy: -9.8)
-        
-        // Ground, Foul Line, and Wall setup code...
+        static let wall: UInt32 = 0x1 << 2
     }
 
-    func addAnimal(animal: Animal, atX xPosition: CGFloat, isMergeResult: Bool = false) {
+    override func didMove(to view: SKView) {
+        safeAreaInsets = view.safeAreaInsets
+        scaleMode = .resizeFill
+        backgroundColor = .clear
+        setupPhysics()
+    }
+
+    override func didChangeSize(_ oldSize: CGSize) {
+        super.didChangeSize(oldSize)
+        if oldSize != .zero, oldSize != size {
+            safeAreaInsets = view?.safeAreaInsets ?? safeAreaInsets
+            rebuildBoundaries()
+        }
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        super.update(currentTime)
+        lastUpdateTime = currentTime
+        captureFrameIfNeeded()
+        checkForGameOver(currentTime: currentTime)
+    }
+
+    func setupPhysics() {
+        guard size.width > 0, size.height > 0 else { return }
+
+        removeAllChildren()
+        frameBuffer.removeAll()
+        shouldRecordFrames = true
+        gameOverTriggered = false
+        stackOverLineStartedAt = nil
+        mergeComboCounter = 0
+        mergeComboTimer?.invalidate()
+        mergeComboTimer = nil
+
+        physicsWorld.contactDelegate = self
+        physicsWorld.gravity = CGVector(dx: 0, dy: AppMetrics.gravityForce)
+
+        rebuildBoundaries()
+    }
+
+    func addAnimal(animal: Animal, atX xPosition: CGFloat, yPosition: CGFloat? = nil, isMergeResult: Bool = false) {
+        guard !gameOverTriggered else { return }
+
         let texture = SKTexture(imageNamed: animal.imageName)
         let sprite = SKSpriteNode(texture: texture)
-        
-        let baseSize: CGFloat = 40
-        let animalSize = baseSize + (animal.mass * 4.0)
+        sprite.name = "animal-\(UUID().uuidString)"
+
+        let baseSize: CGFloat = 44
+        let animalSize = min(112, baseSize + (animal.mass * 4.2))
         sprite.size = CGSize(width: animalSize, height: animalSize)
-        
-        sprite.position = CGPoint(x: xPosition, y: self.size.height - (self.safeAreaInsets.top + 75))
-        
-        // Physics body creation...
-        
-        sprite.userData = ["animal": animal]
-        if isMergeResult {
-            sprite.userData?["isCascadeEligible"] = true
-        }
+
+        let minX = playfieldInset + animalSize / 2
+        let maxX = size.width - playfieldInset - animalSize / 2
+        let spawnX = max(minX, min(maxX, xPosition))
+        let dropSpawnY = min(size.height - safeAreaInsets.top - 92, foulLineY - animalSize * 0.75)
+        let minY = safeAreaInsets.bottom + groundHeight + animalSize / 2
+        let maxY = size.height - safeAreaInsets.top - animalSize / 2
+        let spawnY = max(minY, min(maxY, yPosition ?? dropSpawnY))
+        sprite.position = CGPoint(x: spawnX, y: spawnY)
+        sprite.zPosition = 20
+
+        let radius = animalSize * 0.46
+        let body = SKPhysicsBody(circleOfRadius: radius)
+        body.mass = max(0.12, animal.mass / 3.5)
+        body.friction = animal.friction
+        body.restitution = animal.restitution
+        body.linearDamping = 0.15
+        body.angularDamping = 0.35
+        body.allowsRotation = true
+        body.usesPreciseCollisionDetection = true
+        body.categoryBitMask = PhysicsCategory.animal
+        body.collisionBitMask = PhysicsCategory.animal | PhysicsCategory.ground | PhysicsCategory.wall
+        body.contactTestBitMask = PhysicsCategory.animal | PhysicsCategory.ground | PhysicsCategory.wall
+        sprite.physicsBody = body
+
+        sprite.userData = [
+            "animal": animal,
+            "createdAt": lastUpdateTime > 0 ? lastUpdateTime : CACurrentMediaTime(),
+            "isCascadeEligible": isMergeResult
+        ]
+
         addChild(sprite)
-        
-        let scaleDown = SKAction.scale(to: CGSize(width: sprite.size.width * 1.2, height: sprite.size.height * 0.8), duration: 0.1)
-        let scaleUp = SKAction.scale(to: CGSize(width: sprite.size.width * 0.9, height: sprite.size.height * 1.1), duration: 0.1)
-        let scaleNormal = SKAction.scale(to: sprite.size, duration: 0.15)
-        let sequence = SKAction.sequence([scaleDown, scaleUp, scaleNormal])
-        sprite.run(sequence)
+        animateDropSquash(sprite)
     }
 
     func didBegin(_ contact: SKPhysicsContact) {
+        guard !gameOverTriggered else { return }
+
         if contact.collisionImpulse > 5.0 {
             gameDelegate?.gameSceneDidThump(self)
         }
-        
+
         guard let nodeA = contact.bodyA.node, let nodeB = contact.bodyB.node else { return }
-        
-        if (contact.bodyA.categoryBitMask == PhysicsCategory.foulLine || contact.bodyB.categoryBitMask == PhysicsCategory.foulLine) {
-            shouldRecordFrames = false
-            gameDelegate?.gameScene(self, didTriggerGameOverWithFrames: self.frameBuffer)
-            return
+        guard let animalA = nodeA.userData?["animal"] as? Animal,
+              let animalB = nodeB.userData?["animal"] as? Animal else { return }
+        guard animalA.name == animalB.name,
+              let mergeResultName = animalA.mergeResult,
+              let nextAnimal = AnimalLibrary.getAnimal(byName: mergeResultName) else { return }
+        guard nodeA.parent != nil, nodeB.parent != nil else { return }
+        guard nodeA.userData?["isMerging"] as? Bool != true,
+              nodeB.userData?["isMerging"] as? Bool != true else { return }
+
+        nodeA.userData?["isMerging"] = true
+        nodeB.userData?["isMerging"] = true
+
+        let isCascade = (nodeA.userData?["isCascadeEligible"] as? Bool ?? false) ||
+            (nodeB.userData?["isCascadeEligible"] as? Bool ?? false)
+        let combo = max(1, mergeComboCounter + (isCascade ? 1 : 0))
+        let mergePosition = CGPoint(
+            x: (nodeA.position.x + nodeB.position.x) / 2,
+            y: (nodeA.position.y + nodeB.position.y) / 2
+        )
+
+        run(SKAction.playSoundFileNamed(
+            nextAnimal.rarity == .legendary || nextAnimal.rarity == .mythical ? "pop3.mp3" : "pop2.mp3",
+            waitForCompletion: false
+        ))
+
+        addMergeEffect(at: mergePosition, for: nextAnimal)
+        gameDelegate?.gameScene(self, didMergeInitialAnimal: animalA, toCreate: nextAnimal, at: mergePosition, combo: combo)
+
+        nodeA.removeFromParent()
+        nodeB.removeFromParent()
+        addAnimal(animal: nextAnimal, atX: mergePosition.x, yPosition: mergePosition.y, isMergeResult: true)
+
+        if let ability = nextAnimal.ability {
+            triggerAbility(ability, at: mergePosition)
         }
 
-        guard let animalA = nodeA.userData?["animal"] as? Animal, let animalB = nodeB.userData?["animal"] as? Animal else { return }
-
-        if animalA.name == animalB.name, let mergeResultName = animalA.mergeResult, let nextAnimal = AnimalLibrary.getAnimal(byName: mergeResultName) {
-            let isCascade = (nodeA.userData?["isCascadeEligible"] as? Bool ?? false) || (nodeB.userData?["isCascadeEligible"] as? Bool ?? false)
-            let comboMultiplier = isCascade ? AppMetrics.Scoring.comboMultiplier : 1.0
-            let mergePosition = CGPoint(x: (nodeA.position.x + nodeB.position.x) / 2, y: (nodeA.position.y + nodeB.position.y) / 2)
-            gameDelegate?.gameScene(self, didMergeInitialAnimal: animalA, toCreate: nextAnimal, at: mergePosition, combo: Int(comboMultiplier * Double(mergeComboCounter)))
-            if nextAnimal.rarity == .legendary || nextAnimal.rarity == .mythical {
-                run(SKAction.playSoundFileNamed("pop3.mp3", waitForCompletion: false))
-            } else {
-                run(SKAction.playSoundFileNamed("pop2.mp3", waitForCompletion: false))
-            }
-            let emitter = (nextAnimal.rarity == .legendary || nextAnimal.rarity == .mythical) ? legendaryMergeEmitter.copy() as! SKEmitterNode : standardMergeEmitter.copy() as! SKEmitterNode
-            emitter.position = mergePosition
-            addChild(emitter)
-            emitter.run(SKAction.sequence([.wait(forDuration: 1.0), .removeFromParent()]))
-
-            let mergeAction = SKAction.run {
-                nodeA.removeFromParent()
-                nodeB.removeFromParent()
-                self.addAnimal(animal: nextAnimal, atX: mergePosition.x, isMergeResult: true)
-                // Check for ability and trigger it
-                if let ability = nextAnimal.ability {
-                    self.triggerAbility(ability.rawValue, at: mergePosition)
-                }
-            }
-            self.run(mergeAction)
-
-            mergeComboCounter += 1
-            mergeComboTimer?.invalidate()
-            mergeComboTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in self?.mergeComboCounter = 0 }
-        }
-    }
-
-    func triggerAbility(_ ability: String, at position: CGPoint) {
-        switch ability {
-        case "Roar":
-            triggerRoarAbility(at: position)
-        case "Pounce":
-            triggerPounceAbility(at: position)
-        default:
-            break
+        mergeComboCounter = combo + 1
+        mergeComboTimer?.invalidate()
+        mergeComboTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.mergeComboCounter = 0
         }
     }
 
-    func triggerRoarAbility(at position: CGPoint) {
-        // Example: play roar sound and shake nearby animals
-        run(SKAction.playSoundFileNamed("roar.mp3", waitForCompletion: false))
-        run(SKAction.playSoundFileNamed("achievement.wav", waitForCompletion: false))
-        let nearbyAnimals = children.compactMap { node -> SKNode? in
-            guard let animal = node.userData?["animal"] as? Animal else { return nil }
-            let distance = hypot(node.position.x - position.x, node.position.y - position.y)
-            return distance < 100 ? node : nil
-        }
-        for animalNode in nearbyAnimals {
-            let shake = SKAction.sequence([
-                SKAction.moveBy(x: 5, y: 0, duration: 0.05),
-                SKAction.moveBy(x: -10, y: 0, duration: 0.1),
-                SKAction.moveBy(x: 5, y: 0, duration: 0.05)
-            ])
-            animalNode.run(shake)
-        }
-    }
-
-    func triggerPounceAbility(at position: CGPoint) {
-        // Example: make merged animal bounce and maybe show a score boost
-        let bounceUp = SKAction.moveBy(x: 0, y: 30, duration: 0.2)
-        let bounceDown = SKAction.moveBy(x: 0, y: -30, duration: 0.2)
-        let bounceSequence = SKAction.sequence([bounceUp, bounceDown])
-        let nodesAtPos = nodes(at: position)
-        for node in nodesAtPos {
-            if let _ = node.userData?["animal"] as? Animal {
-                node.run(bounceSequence)
-            }
-        }
-        // Could also add a score pop-up or particle effect here
-    }
-    
     func showScoreIndicator(at position: CGPoint, amount: Int) {
         let label = SKLabelNode(fontNamed: "AvenirNext-Bold")
-        label.text = "+\(amount)!"
-        label.fontSize = 40
+        label.text = "+\(amount)"
+        label.fontSize = 36
         label.fontColor = .yellow
         label.position = position
         label.zPosition = 100
         label.horizontalAlignmentMode = .center
         addChild(label)
-        
-        let moveUpAction = SKAction.move(by: CGVector(dx: 0, dy: 100), duration: 1.5)
+
+        let moveUpAction = SKAction.move(by: CGVector(dx: 0, dy: 86), duration: 1.2)
         moveUpAction.timingMode = .easeOut
-        let fadeOutAction = SKAction.fadeOut(withDuration: 1.5)
-        let group = SKAction.group([moveUpAction, fadeOutAction])
-        let sequence = SKAction.sequence([group, .removeFromParent()])
-        label.run(sequence)
+        let group = SKAction.group([moveUpAction, .fadeOut(withDuration: 1.2)])
+        label.run(.sequence([group, .removeFromParent()]))
     }
-    
+
     func clearBottomAnimals() {
-        let animals = children.filter { $0.physicsBody?.categoryBitMask == PhysicsCategory.animal }
-        let sortedAnimals = animals.sorted { $0.position.y < $1.position.y }
-        let animalsToRemove = sortedAnimals.prefix(5)
-        animalsToRemove.forEach { $0.removeFromParent() }
+        animalNodes()
+            .sorted { $0.position.y < $1.position.y }
+            .prefix(5)
+            .forEach { $0.removeFromParent() }
+    }
+
+    func clearTopAnimals() {
+        animalNodes()
+            .sorted { $0.position.y > $1.position.y }
+            .prefix(6)
+            .forEach { $0.removeFromParent() }
+        gameOverTriggered = false
+        shouldRecordFrames = true
+        stackOverLineStartedAt = nil
     }
 
     func resetScene() {
-        // Clear all animals and reset relevant state for a new game.
-        removeAllChildren()
-        frameBuffer.removeAll()
-        shouldRecordFrames = true
-        run(SKAction.playSoundFileNamed("ambientloop.wav", waitForCompletion: false))
-        // You can add more reset logic here if needed.
+        setupPhysics()
     }
 
-    // Call this method as part of your revive logic to play the revive sound.
     func playReviveSound() {
         run(SKAction.playSoundFileNamed("revive.wav", waitForCompletion: false))
     }
 
     func nudgeAnimals() {
-        let animals = children.filter { $0.physicsBody?.categoryBitMask == PhysicsCategory.animal }
-        for node in animals {
-            let dx = CGFloat.random(in: -20...20)
-            node.physicsBody?.applyImpulse(CGVector(dx: dx, dy: 0))
+        animalNodes().forEach { node in
+            let dx = CGFloat.random(in: -22...22)
+            node.physicsBody?.applyImpulse(CGVector(dx: dx, dy: 8))
         }
     }
-}
 
-    func clearTopAnimals() {
-        let animals = children.filter { $0.physicsBody?.categoryBitMask == PhysicsCategory.animal }
-        let sorted = animals.sorted { $0.position.y > $1.position.y }
-        let toRemove = sorted.prefix(5)
-        toRemove.forEach { $0.removeFromParent() }
+    private func addBoundaryNodes() {
+        let groundY = safeAreaInsets.bottom + groundHeight
+
+        let ground = SKNode()
+        ground.name = "ground"
+        ground.position = .zero
+        ground.physicsBody = SKPhysicsBody(edgeFrom: CGPoint(x: playfieldInset, y: groundY),
+                                           to: CGPoint(x: size.width - playfieldInset, y: groundY))
+        ground.physicsBody?.categoryBitMask = PhysicsCategory.ground
+        ground.physicsBody?.collisionBitMask = PhysicsCategory.animal
+        addChild(ground)
+
+        let leftWall = SKNode()
+        leftWall.name = "leftWall"
+        leftWall.physicsBody = SKPhysicsBody(edgeFrom: CGPoint(x: playfieldInset, y: groundY),
+                                             to: CGPoint(x: playfieldInset, y: size.height + 160))
+        leftWall.physicsBody?.categoryBitMask = PhysicsCategory.wall
+        leftWall.physicsBody?.collisionBitMask = PhysicsCategory.animal
+        addChild(leftWall)
+
+        let rightWall = SKNode()
+        rightWall.name = "rightWall"
+        rightWall.physicsBody = SKPhysicsBody(edgeFrom: CGPoint(x: size.width - playfieldInset, y: groundY),
+                                              to: CGPoint(x: size.width - playfieldInset, y: size.height + 160))
+        rightWall.physicsBody?.categoryBitMask = PhysicsCategory.wall
+        rightWall.physicsBody?.collisionBitMask = PhysicsCategory.animal
+        addChild(rightWall)
     }
+
+    private func rebuildBoundaries() {
+        children
+            .filter { ["ground", "leftWall", "rightWall", "foulLine"].contains($0.name) }
+            .forEach { $0.removeFromParent() }
+
+        addBoundaryNodes()
+        addFoulLine()
+    }
+
+    private func addFoulLine() {
+        let line = SKShapeNode()
+        let y = foulLineY
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: playfieldInset, y: y))
+        path.addLine(to: CGPoint(x: size.width - playfieldInset, y: y))
+        line.path = path
+        line.strokeColor = UIColor.white.withAlphaComponent(0.34)
+        line.lineWidth = 2
+        line.zPosition = 5
+        line.name = "foulLine"
+        addChild(line)
+    }
+
+    private var foulLineY: CGFloat {
+        max(size.height * 0.62, size.height - safeAreaInsets.top - foulLineTopOffset)
+    }
+
+    private func captureFrameIfNeeded() {
+        guard shouldRecordFrames else { return }
+        frameCaptureCounter += 1
+        guard frameCaptureCounter >= frameCaptureInterval else { return }
+        frameCaptureCounter = 0
+
+        if let view, let texture = view.texture(from: self) {
+            frameBuffer.append(texture)
+            if frameBuffer.count > frameBufferSize {
+                frameBuffer.removeFirst()
+            }
+        }
+    }
+
+    private func checkForGameOver(currentTime: TimeInterval) {
+        guard !gameOverTriggered else { return }
+
+        let settledAboveLine = animalNodes().contains { node in
+            guard let body = node.physicsBody else { return false }
+            let age = currentTime - (node.userData?["createdAt"] as? TimeInterval ?? currentTime)
+            let radius = max(node.frame.width, node.frame.height) / 2
+            let top = node.position.y + radius
+            let isSettled = abs(body.velocity.dy) < 45 && abs(body.velocity.dx) < 70
+            return age > 1.7 && top > foulLineY && isSettled
+        }
+
+        if settledAboveLine {
+            if stackOverLineStartedAt == nil {
+                stackOverLineStartedAt = currentTime
+            }
+            if let startedAt = stackOverLineStartedAt, currentTime - startedAt > 1.0 {
+                gameOverTriggered = true
+                shouldRecordFrames = false
+                gameDelegate?.gameScene(self, didTriggerGameOverWithFrames: frameBuffer)
+            }
+        } else {
+            stackOverLineStartedAt = nil
+        }
+    }
+
+    private func animateDropSquash(_ sprite: SKSpriteNode) {
+        let originalSize = sprite.size
+        let scaleDown = SKAction.scale(to: CGSize(width: originalSize.width * 1.16, height: originalSize.height * 0.84), duration: 0.08)
+        let scaleUp = SKAction.scale(to: CGSize(width: originalSize.width * 0.92, height: originalSize.height * 1.08), duration: 0.08)
+        let scaleNormal = SKAction.scale(to: originalSize, duration: 0.12)
+        sprite.run(.sequence([scaleDown, scaleUp, scaleNormal]))
+    }
+
+    private func addMergeEffect(at position: CGPoint, for animal: Animal) {
+        let isRare = animal.rarity == .legendary || animal.rarity == .mythical
+        let emitter = SKEmitterNode()
+        emitter.particleTexture = SKTexture(imageNamed: isRare ? "vfx_merge_legendary" : "vfx_merge_pop")
+        emitter.particleBirthRate = isRare ? 1400 : 800
+        emitter.numParticlesToEmit = isRare ? 38 : 22
+        emitter.particleLifetime = isRare ? 0.7 : 0.45
+        emitter.particleSpeed = isRare ? 240 : 145
+        emitter.particleSpeedRange = isRare ? 110 : 60
+        emitter.emissionAngleRange = .pi * 2
+        emitter.particleScale = isRare ? 0.28 : 0.2
+        emitter.particleScaleRange = 0.12
+        emitter.particleColor = isRare ? .yellow : .white
+        emitter.particleColorBlendFactor = isRare ? 0.8 : 0.2
+        emitter.particleAlpha = 0.9
+        emitter.particleAlphaSpeed = -1.4
+        emitter.position = position
+        emitter.zPosition = 90
+        addChild(emitter)
+        emitter.run(.sequence([.wait(forDuration: 1.0), .removeFromParent()]))
+    }
+
+    private func triggerAbility(_ ability: AnimalAbility, at position: CGPoint) {
+        switch ability {
+        case .roar:
+            triggerRoarAbility(at: position)
+        case .pounce:
+            triggerPounceAbility(at: position)
+        case .heavyweight:
+            freezeNearbyHeavyAnimal(at: position)
+        case .windGust:
+            nudgeAnimals()
+        }
+    }
+
+    private func triggerRoarAbility(at position: CGPoint) {
+        run(SKAction.playSoundFileNamed("achievement.wav", waitForCompletion: false))
+        animalNodes().forEach { node in
+            let distance = hypot(node.position.x - position.x, node.position.y - position.y)
+            guard distance < 120 else { return }
+            node.run(.sequence([
+                .moveBy(x: 6, y: 0, duration: 0.05),
+                .moveBy(x: -12, y: 0, duration: 0.1),
+                .moveBy(x: 6, y: 0, duration: 0.05)
+            ]))
+        }
+    }
+
+    private func triggerPounceAbility(at position: CGPoint) {
+        animalNodes().forEach { node in
+            let distance = hypot(node.position.x - position.x, node.position.y - position.y)
+            guard distance < 60 else { return }
+            node.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 22))
+        }
+    }
+
+    private func freezeNearbyHeavyAnimal(at position: CGPoint) {
+        animalNodes().forEach { node in
+            let distance = hypot(node.position.x - position.x, node.position.y - position.y)
+            guard distance < 60 else { return }
+            node.physicsBody?.mass *= 1.25
+            node.physicsBody?.friction = min(1.0, (node.physicsBody?.friction ?? 0.7) + 0.15)
+        }
+    }
+
+    private func animalNodes() -> [SKNode] {
+        children.filter { $0.physicsBody?.categoryBitMask == PhysicsCategory.animal }
+    }
+}

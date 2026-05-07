@@ -21,7 +21,7 @@ enum AppImages {
     static let koala = "koala"
     static let lion = "lion"
 
-    static let goldenEgg = "golden_egg"
+    static let goldenEgg = "goldenegg"
     static let reviveButton = "revive_button"
     static let goldenRevive = "goldenegg_revive"
     static let newRecordPopup = "highscore_popup"

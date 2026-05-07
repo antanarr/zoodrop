@@ -1,15 +1,13 @@
 import Foundation
 import SwiftUI
 
-/// The QuestEvent enum now includes an event for surviving a drop.
 enum QuestEvent {
     case animalDropped(name: String)
     case scoreAchieved(Int)
-    case dropSurvived // NEW
+    case dropSurvived
 }
 
 @MainActor
-// 1. REMOVED SINGLETON: This class is now instantiated in Zoo_DropApp.
 class QuestManager: ObservableObject {
     
     @Published var activeQuests: [Quest] = []
@@ -19,12 +17,10 @@ class QuestManager: ObservableObject {
     private let activeQuestsKey = "activeQuestsKey"
     private let lastQuestDateKey = "lastQuestDateKey"
     
-    // 2. INJECTED DEPENDENCY: SoundManager is now passed in via the initializer.
     private let soundManager: SoundManager
     
     private let subscriptionManager: SubscriptionManager
     
-    // 3. PUBLIC INITIALIZER: The initializer is now public and requires a SoundManager.
     init(soundManager: SoundManager, subscriptionManager: SubscriptionManager) {
         self.soundManager = soundManager
         self.subscriptionManager = subscriptionManager
@@ -56,8 +52,7 @@ class QuestManager: ObservableObject {
             
             if quest.goalReached && !quest.isComplete {
                 quest.isComplete = true
-                // 4. USE INJECTED DEPENDENCY
-                soundManager.playSound(named: "quest_complete")
+                soundManager.playAchievementSound()
             }
             
             activeQuests[i] = quest
@@ -66,9 +61,7 @@ class QuestManager: ObservableObject {
     }
     
     func claimReward(for quest: Quest) {
-        // Here you would add the reward to the player's inventory
         print("Player claimed \(quest.reward) Golden Eggs for completing '\(quest.title)'!")
-        // 4. USE INJECTED DEPENDENCY
         soundManager.playGoldenEggClaimedSound()
         
         subscriptionManager.goldenEggCount += quest.reward
@@ -113,10 +106,11 @@ class QuestManager: ObservableObject {
     }
     
     private func buildQuestLibrary() {
-        // A more extensive quest library will be part of a future task.
         self.questLibrary = [
             Quest(id: "score_1k", title: "Novice Stacker", description: "Reach a score of 1,000 points.", type: .reachScore(1000), reward: 10),
-            Quest(id: "drop_panda_5", title: "Panda Express", description: "Drop 5 Pandas.", type: .dropSpecificAnimal(name: "Panda", count: 5), reward: 15)
+            Quest(id: "drop_penguin_5", title: "Penguin Parade", description: "Drop 5 Penguins.", type: .dropSpecificAnimal(name: "Penguin", count: 5), reward: 12),
+            Quest(id: "survive_20_drops", title: "Careful Keeper", description: "Make 20 drops in one day.", type: .surviveDrops(20), reward: 15),
+            Quest(id: "score_5k", title: "Tower Tamer", description: "Reach a score of 5,000 points.", type: .reachScore(5000), reward: 25)
         ]
     }
 }

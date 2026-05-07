@@ -19,13 +19,23 @@ struct PrivacyPolicyView: View {
                     .accessibilityHint("Explanation of how Zoo Drop handles your data and privacy")
 
                 Text("""
-                Zoo Drop does not collect any personal data without your consent. We use third-party services such as AdMob and Game Center, which may collect anonymized data in accordance with their own privacy policies.
+                Last updated: May 6, 2026
 
-                We display ads through Google AdMob. If you choose to subscribe to Zoo Club, ads are removed. We do not sell your data, but some services may track interactions to improve ad relevance.
+                Zoo Drop is an ad-supported iOS game. We do not require you to create an account, and we do not sell personal information.
 
-                By using Zoo Drop, you agree to the use of these services. If you do not agree, you may uninstall the app.
+                Game progress, settings, unlocks, and similar gameplay data are stored locally on your device. Deleting the app may delete local progress unless it is also stored by Apple services.
 
-                For questions or concerns, contact us at support@zoodrop.app.
+                If you sign in to Apple Game Center, Apple may process your Game Center profile, achievements, leaderboard scores, and related identifiers so game features can work.
+
+                Purchases and subscriptions use Apple StoreKit. Apple processes payment, billing, refund, and transaction information. Zoo Drop receives purchase status needed to unlock paid features or remove ads.
+
+                Ads are provided through Google AdMob. Zoo Drop requests limited, non-personalized ads. Google and its partners may process consent signals, device information, approximate location, ad interactions, and diagnostics to deliver, measure, and limit ads.
+
+                Where required, Google User Messaging Platform may show privacy options that let you manage advertising choices. You can also use iOS privacy settings such as App Tracking Transparency and Apple advertising settings.
+
+                We use diagnostics only to maintain, secure, and improve the app. We keep information only as long as needed for the purposes described here or as required by law.
+
+                For privacy questions, contact support@zoodrop.app.
                 """)
                     .font(.body)
                     .multilineTextAlignment(.leading)
