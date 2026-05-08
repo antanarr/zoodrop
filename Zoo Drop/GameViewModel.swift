@@ -86,7 +86,9 @@ final class GameViewModel: ObservableObject, GameSceneDelegate {
     func startNewRun(mode: GameMode, challengeID: String? = nil, date: Date = Date()) {
         configureRun(mode: mode, challengeID: challengeID, date: date, clearSnapshot: true)
         questManager.processEvent(type: .modePlayed(mode))
-        markTutorialStepComplete(tutorialStep(for: mode))
+        if let tutorialStep = runStartTutorialStep(for: mode) {
+            markTutorialStepComplete(tutorialStep)
+        }
     }
 
     func resetGame() {
@@ -565,10 +567,10 @@ final class GameViewModel: ObservableObject, GameSceneDelegate {
         saveProgressionMetrics()
     }
 
-    private func tutorialStep(for mode: GameMode) -> TutorialStep {
+    private func runStartTutorialStep(for mode: GameMode) -> TutorialStep? {
         switch mode {
         case .classic:
-            return .firstAim
+            return nil
         case .dailySafari:
             return .firstDailyRun
         case .timedStampede:

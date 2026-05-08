@@ -11,37 +11,61 @@ import SwiftUI
 struct OnboardingView: View {
     let onFinish: () -> Void
     @State private var appear = false
-    @State private var wiggle = false
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [.teal.opacity(0.45), .blue.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .ignoresSafeArea()
+            AmbientSafariBackground()
 
-            VStack(spacing: 30) {
-                Text("Welcome to Zoo Drop!")
-                    .font(.largeTitle.bold())
-                    .accessibilityLabel("Welcome to Zoo Drop")
-                    .accessibilityHint("Introduction screen for the Zoo Drop game")
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 18) {
+                        Image("logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 188)
+                            .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
+                            .accessibilityLabel("Welcome to Zoo Drop")
+                            .accessibilityHint("Introduction screen for the Zoo Drop game")
 
-                Text("Stack animals, unlock chaos, and build the wobbliest zoo tower ever.")
-                    .font(.title3)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                    .accessibilityLabel("Stack animals, unlock chaos, and build the wobbliest zoo tower ever")
-                    .accessibilityHint("Instructions and goal summary for Zoo Drop")
+                        VStack(spacing: 8) {
+                            Text("Merge Animals. Reach Elephant.")
+                                .font(.system(size: 30, weight: .black, design: .rounded))
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.72)
 
-                Image("logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200)
-                    .scaleEffect(appear ? 1.0 : 0.7)
-                    .rotationEffect(.degrees(wiggle ? 2 : -2))
-                    .animation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true), value: wiggle)
-                    .accessibilityLabel("Zoo Drop Logo")
-                    .accessibilityHint("Animated Zoo Drop logo")
+                            Text("Drop animals into the habitat. Matching pairs evolve into bigger animals. Keep the stack below the red danger line.")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.88))
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityLabel("Drop animals into the habitat. Matching pairs evolve into bigger animals. Keep the stack below the red danger line.")
+                        .accessibilityHint("Goal summary for Zoo Drop")
 
-                Spacer()
+                        VStack(alignment: .leading, spacing: 12) {
+                            onboardingStep(icon: "hand.draw.fill", title: "Aim", detail: "Drag left or right to place the next animal.")
+                            onboardingStep(icon: "arrow.down.circle.fill", title: "Drop", detail: "Release to drop. Tap the Next panel for an accessible drop.")
+                            onboardingStep(icon: "equals.circle.fill", title: "Merge", detail: "Two of the same animal become the next animal in the ZooDex.")
+                        }
+                        .padding(16)
+                        .frame(maxWidth: 430, alignment: .leading)
+                        .premiumGlass(cornerRadius: 24, tint: PremiumTheme.lagoon.opacity(0.08))
+
+                        Text("The run ends when the pile settles above the red danger line.")
+                            .font(.subheadline.weight(.heavy))
+                            .foregroundStyle(PremiumTheme.gold)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: 430)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 74)
+                    .padding(.bottom, 22)
+                    .frame(maxWidth: .infinity)
+                }
+                .scrollIndicators(.hidden)
 
                 Button(action: {
                     onFinish()
@@ -49,22 +73,41 @@ struct OnboardingView: View {
                     Text("Let's Go!")
                         .font(.title2.bold())
                         .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                        .padding(.horizontal)
+                        .frame(maxWidth: 386)
+                        .background(PremiumTheme.heroGradient, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .foregroundColor(PremiumTheme.ink)
                 }
+                .frame(maxWidth: 386)
+                .padding(.horizontal, 22)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
+                .background(.black.opacity(0.36))
                 .accessibilityLabel("Let's Go")
                 .accessibilityHint("Begin playing Zoo Drop")
                 .accessibilityIdentifier("onboardingStartButton")
             }
-            .padding()
             .opacity(appear ? 1 : 0)
             .animation(.easeIn(duration: 0.5), value: appear)
             .onAppear {
                 appear = true
-                wiggle = true
+            }
+        }
+    }
+
+    private func onboardingStep(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.headline.weight(.black))
+                .foregroundStyle(PremiumTheme.gold)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(.white)
+                Text(detail)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

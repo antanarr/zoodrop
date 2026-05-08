@@ -7,7 +7,6 @@ struct GameView: View {
     @StateObject private var shareManager = ShareManager()
     @State private var scene = GameScene()
     @State private var isPaused = false
-    @State private var ambientDrift = false
     @State private var hasAppliedLaunch = false
     @State private var showTutorialNudge = true
     @State private var visibleAchievement: GameplayAchievementID?
@@ -21,16 +20,16 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let visibleWidth = max(0, geometry.size.width - geometry.safeAreaInsets.leading - geometry.safeAreaInsets.trailing)
+
             ZStack {
                 Image("gameplayscreen")
                     .resizable()
                     .scaledToFill()
-                    .scaleEffect(reduceMotion ? 1 : (ambientDrift ? 1.035 : 1.0))
-                    .offset(x: reduceMotion ? 0 : (ambientDrift ? -10 : 10), y: reduceMotion ? 0 : (ambientDrift ? 8 : -6))
                     .ignoresSafeArea()
 
                 LinearGradient(
-                    colors: [.black.opacity(0.08), .clear, .black.opacity(0.34)],
+                    colors: [.black.opacity(0.24), .white.opacity(0.02), .black.opacity(0.32)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -56,18 +55,20 @@ struct GameView: View {
                     topBar
                     modeBanner
                     Spacer()
-                    bottomControls
+                    bottomControls(width: visibleWidth - 36)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 12)
                 .padding(.bottom, 22)
+                .frame(width: visibleWidth, height: geometry.size.height)
+                .position(x: visibleWidth / 2, y: geometry.size.height / 2)
 
                 ChuteView(
                     nextAnimal: viewModel.nextAnimalToDrop,
                     isAiming: viewModel.isAiming,
                     isWiggling: $viewModel.chuteIsWiggling
                 )
-                .position(x: viewModel.dropPositionX, y: 86)
+                .position(x: viewModel.dropPositionX, y: 120)
                 .animation(.spring(response: 0.24, dampingFraction: 0.82), value: viewModel.dropPositionX)
 
                 if let animal = viewModel.recentlyUnlockedAnimal {
@@ -123,9 +124,6 @@ struct GameView: View {
                 configureScene(size: geometry.size)
                 viewModel.attach(scene: scene)
                 applyLaunchIfNeeded()
-                if !reduceMotion {
-                    ambientDrift = true
-                }
             }
             .onChange(of: geometry.size) { _, newSize in
                 configureScene(size: newSize)
@@ -141,7 +139,6 @@ struct GameView: View {
                 showAchievement(achievement)
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 9).repeatForever(autoreverses: true), value: ambientDrift)
     }
 
     private var topBar: some View {
@@ -171,7 +168,7 @@ struct GameView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .premiumGlass(cornerRadius: 18, tint: PremiumTheme.mint.opacity(0.16))
+            .premiumGlass(cornerRadius: 18, tint: PremiumTheme.mint.opacity(0.08))
 
             Spacer()
 
@@ -195,7 +192,7 @@ struct GameView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .premiumGlass(cornerRadius: 16, tint: viewModel.gameMode.tint.opacity(0.28))
+                .premiumGlass(cornerRadius: 16, tint: viewModel.gameMode.tint.opacity(0.08))
 
             if let remainingTime = viewModel.remainingTime {
                 Label(timeString(remainingTime), systemImage: "timer")
@@ -224,15 +221,19 @@ struct GameView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .premiumGlass(cornerRadius: 16, tint: PremiumTheme.lagoon.opacity(0.18))
+                .premiumGlass(cornerRadius: 16, tint: PremiumTheme.lagoon.opacity(0.08))
                 .accessibilityLabel("Upcoming queue preview")
             }
         }
         .padding(.top, 10)
     }
 
-    private var bottomControls: some View {
-        HStack(spacing: 12) {
+    private func bottomControls(width availableWidth: CGFloat) -> some View {
+        let controlsWidth = min(404, max(284, availableWidth))
+        let nextPanelWidth = max(136, min(176, controlsWidth - 156))
+        let controlGap = max(6, (controlsWidth - nextPanelWidth - 136) / 2)
+
+        return HStack(spacing: controlGap) {
             powerButton(
                 title: "Nudge",
                 systemImage: "arrow.left.and.right",
@@ -240,41 +241,36 @@ struct GameView: View {
                 action: viewModel.activateNudge
             )
 
-            Spacer()
-
             if let nextAnimal = viewModel.nextAnimalToDrop {
                 Button {
                     viewModel.dropAnimal()
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         Image(nextAnimal.imageName)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 44, height: 44)
+                            .frame(width: 48, height: 48)
                             .scaleEffect(viewModel.isAiming ? 1.08 : 1)
                             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: viewModel.isAiming)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Next")
-                                .font(.caption.weight(.semibold))
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.white.opacity(0.72))
                             Text(nextAnimal.name)
-                                .font(.headline.weight(.heavy))
+                                .font(.subheadline.weight(.heavy))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                                .minimumScaleFactor(0.62)
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .premiumGlass(cornerRadius: 18, tint: nextAnimal.rarity.color.opacity(0.24), interactive: true)
+                    .frame(width: nextPanelWidth, height: 68)
+                    .premiumGlass(cornerRadius: 20, tint: nextAnimal.rarity.color.opacity(0.08), interactive: true)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Drop \(nextAnimal.name)")
                 .accessibilityHint("Drops the queued animal at the current aim position.")
                 .accessibilityIdentifier("nextAnimalPanel")
             }
-
-            Spacer()
 
             powerButton(
                 title: "Reroll",
@@ -283,32 +279,49 @@ struct GameView: View {
                 action: viewModel.activateReroll
             )
         }
+        .frame(width: controlsWidth, height: 68)
     }
 
     private var tutorialOverlay: some View {
-        VStack {
-            Spacer()
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Drag to aim, release to drop", systemImage: "hand.draw.fill")
-                    .font(.headline.weight(.black))
-                    .foregroundStyle(.white)
-                Text("Make matching animals touch to evolve the zoo. The center Next panel is also a button for accessible drops.")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.78))
-                Button("Got it") {
-                    withAnimation {
-                        showTutorialNudge = false
+        GeometryReader { proxy in
+            let visibleWidth = UIScreen.main.bounds.width
+            let cardWidth = min(visibleWidth - 36, 344)
+
+            ZStack(alignment: .bottomLeading) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Goal", systemImage: "flag.checkered")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(PremiumTheme.gold)
+                    Text("Merge two matching animals to evolve them. Keep every animal below the red danger line. Reach Elephant for a huge score.")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Drag anywhere to aim, then release. You can also tap the Next animal panel to drop.")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.74))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Start Dropping") {
+                        withAnimation {
+                            showTutorialNudge = false
+                        }
+                        viewModel.markTutorialStepComplete(.firstAim)
                     }
-                    viewModel.markTutorialStepComplete(.firstAim)
+                    .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.mint, prominence: .primary))
+                    .accessibilityIdentifier("tutorialGotItButton")
                 }
-                .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.mint, prominence: .primary))
-                .accessibilityIdentifier("tutorialGotItButton")
+                .padding(18)
+                .frame(width: cardWidth, alignment: .leading)
+                .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(.white.opacity(0.26), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.34), radius: 18, y: 10)
+                .padding(.leading, max(18, (visibleWidth - cardWidth) / 2))
+                .padding(.bottom, 148)
             }
-            .frame(maxWidth: 360)
-            .premiumCard(cornerRadius: 26)
-            .padding(.bottom, 104)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
         }
-        .padding(.horizontal, 18)
     }
 
     private func achievementToast(_ achievement: GameplayAchievementID) -> some View {
@@ -342,10 +355,11 @@ struct GameView: View {
                 Label("\(cost)", systemImage: "circle.fill")
                     .font(.caption2.weight(.bold))
             }
-            .frame(width: 74, height: 68)
-            .premiumGlass(cornerRadius: 18, tint: PremiumTheme.violet.opacity(0.22), interactive: true)
+            .frame(width: 68, height: 66)
+            .premiumGlass(cornerRadius: 18, tint: PremiumTheme.violet.opacity(0.08), interactive: true)
         }
         .foregroundStyle(.white)
+        .buttonStyle(.plain)
         .accessibilityLabel("\(title), costs \(cost) golden eggs")
         .accessibilityIdentifier("\(title.lowercased())PowerButton")
     }

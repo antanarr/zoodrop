@@ -54,14 +54,21 @@ extension View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         if #available(iOS 26.0, *) {
-            if interactive {
-                self.glassEffect(.regular.tint(tint).interactive(), in: shape)
-            } else {
-                self.glassEffect(.regular.tint(tint), in: shape)
-            }
+            self
+                .background(.black.opacity(0.48), in: shape)
+                .overlay {
+                    shape
+                        .fill(tint.opacity(0.10))
+                        .blendMode(.screen)
+                }
+                .glassEffect(interactive ? .regular.tint(.white.opacity(0.05)).interactive() : .regular.tint(.white.opacity(0.04)), in: shape)
+                .overlay {
+                    shape
+                        .strokeBorder(.white.opacity(0.24), lineWidth: 1)
+                }
         } else {
             self
-                .background(.ultraThinMaterial, in: shape)
+                .background(.black.opacity(0.52), in: shape)
                 .overlay {
                     shape
                         .strokeBorder(.white.opacity(0.24), lineWidth: 1)
@@ -93,10 +100,14 @@ struct PremiumButtonStyle: ButtonStyle {
             .font(.headline.weight(.heavy))
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .padding(.vertical, 15)
             .padding(.horizontal, 16)
             .background(background(for: configuration.isPressed), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .premiumGlass(cornerRadius: 18, tint: tint.opacity(0.28), interactive: true)
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(.white.opacity(prominence == .primary ? 0.45 : 0.26), lineWidth: 1)
+            }
+            .shadow(color: tint.opacity(prominence == .primary ? 0.26 : 0.14), radius: 14, y: 7)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.spring(response: 0.22, dampingFraction: 0.72), value: configuration.isPressed)
     }
@@ -113,7 +124,7 @@ struct PremiumButtonStyle: ButtonStyle {
         let opacity = isPressed ? 0.72 : 0.92
         switch prominence {
         case .standard:
-            return LinearGradient(colors: [tint.opacity(opacity), tint.opacity(0.34)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [PremiumTheme.ink.opacity(0.88), tint.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .primary:
             return LinearGradient(colors: [PremiumTheme.gold.opacity(opacity), PremiumTheme.mint.opacity(opacity)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .destructive:
@@ -123,7 +134,6 @@ struct PremiumButtonStyle: ButtonStyle {
 }
 
 struct AmbientSafariBackground: View {
-    @State private var drift = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -138,32 +148,17 @@ struct AmbientSafariBackground: View {
             Image("premium_safari_horizon")
                 .resizable()
                 .scaledToFill()
-                .offset(y: drift && !reduceMotion ? 8 : -4)
                 .opacity(0.82)
 
             Image("premium_safari_aurora")
                 .resizable()
                 .scaledToFill()
-                .offset(x: drift && !reduceMotion ? 12 : -12)
-                .opacity(0.38)
+                .opacity(reduceMotion ? 0.18 : 0.26)
 
             Image("premium_safari_canopy")
                 .resizable()
                 .scaledToFill()
-                .offset(y: drift && !reduceMotion ? -6 : 8)
-                .opacity(0.9)
-
-            ForEach(0..<9, id: \.self) { index in
-                Circle()
-                    .fill(index.isMultiple(of: 2) ? PremiumTheme.gold.opacity(0.18) : PremiumTheme.mint.opacity(0.16))
-                    .frame(width: CGFloat(42 + index * 18), height: CGFloat(42 + index * 18))
-                    .blur(radius: 14)
-                    .offset(
-                        x: drift ? CGFloat(index * 19 - 96) : CGFloat(index * -17 + 72),
-                        y: drift ? CGFloat(index * -24 + 160) : CGFloat(index * 21 - 160)
-                    )
-                    .animation(reduceMotion ? nil : .easeInOut(duration: Double(8 + index)).repeatForever(autoreverses: true), value: drift)
-            }
+                .opacity(0.82)
 
             LinearGradient(
                 colors: [.black.opacity(0.08), .black.opacity(0.56)],
@@ -177,6 +172,5 @@ struct AmbientSafariBackground: View {
                 .opacity(0.62)
         }
         .ignoresSafeArea()
-        .onAppear { drift = true }
     }
 }

@@ -2,9 +2,10 @@ import Foundation
 import CoreGraphics
 
 struct AppMetrics {
-    static let gravityForce: CGFloat = -4.0
+    static let gravityForce: CGFloat = -5.1
     
-    static let foulLineHeightPercentage: CGFloat = 0.85
+    static let foulLineHeightPercentage: CGFloat = 0.58
+    static let playfieldFloorClearance: CGFloat = 176
 
     // Power-Up Costs
     static let nudgeCostInGoldenEggs = 10

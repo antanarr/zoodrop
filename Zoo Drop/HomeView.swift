@@ -11,9 +11,8 @@ struct HomeView: View {
     @State private var activeGameLaunch: GameLaunch?
     @State private var activeSheet: HomeSheet?
     @State private var shouldAnimateDailyButton = false
-    @State private var mascotBounce = false
     @State private var canResumeSavedRun = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showingUtilityMenu = false
 
     @AppStorage("lastRewardCheckDate") private var lastRewardCheckDate = ""
     @AppStorage("highScore") private var highScore = 0
@@ -25,17 +24,21 @@ struct HomeView: View {
                 AmbientSafariBackground()
 
                 ScrollView {
-                    VStack(spacing: 18) {
+                    VStack(spacing: 14) {
                         header
+                        goalSummary
                         continueRunButton
                         modeStrip
-                        menuGrid
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 26)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 104)
                 }
                 .scrollIndicators(.hidden)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    homeDock
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
             .fullScreenCover(item: $activeGameLaunch, onDismiss: {
@@ -57,12 +60,19 @@ struct HomeView: View {
             .sheet(item: $activeSheet) { sheet in
                 destination(for: sheet)
             }
+            .sheet(isPresented: $showingUtilityMenu) {
+                UtilityMenuView { sheet in
+                    showingUtilityMenu = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        open(sheet)
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
             .onAppear {
                 checkForDailyReward()
                 refreshSavedRunState()
-                if !reduceMotion {
-                    mascotBounce = true
-                }
                 if !ProcessInfo.processInfo.arguments.contains("UITEST_MODE") {
                     gameCenterManager.authenticateUser()
                     soundManager.playThemeMusic()
@@ -80,20 +90,18 @@ struct HomeView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 9) {
             ZStack {
                 Image("fx_button_gold_glow")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 260, height: 160)
-                    .opacity(0.62)
-                    .scaleEffect(mascotBounce ? 1.08 : 0.96)
+                    .frame(width: 226, height: 112)
+                    .opacity(0.34)
 
                 Image("logo")
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: 238)
-                    .rotationEffect(.degrees(mascotBounce && !reduceMotion ? 1.4 : -1.4))
+                    .frame(maxWidth: 202)
                     .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
             }
 
@@ -111,7 +119,21 @@ struct HomeView: View {
                     .foregroundStyle(.white)
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: mascotBounce)
+    }
+
+    private var goalSummary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Goal", systemImage: "flag.checkered")
+                .font(.headline.weight(.black))
+                .foregroundStyle(PremiumTheme.gold)
+            Text("Merge matching animals into bigger ones. Keep the pile below the red danger line. Reach Elephant for the big score.")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.88))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: 430, alignment: .leading)
+        .premiumGlass(cornerRadius: 22, tint: PremiumTheme.mint.opacity(0.08))
     }
 
     @ViewBuilder
@@ -119,12 +141,12 @@ struct HomeView: View {
         Button {
             activeGameLaunch = .new(.classic)
         } label: {
-            Label("Play Classic", systemImage: "play.fill")
-                .font(.system(size: 30, weight: .heavy, design: .rounded))
-                .padding(.vertical, 4)
+            Label("Start Game", systemImage: "play.fill")
+                .font(.system(size: 27, weight: .heavy, design: .rounded))
+                .padding(.vertical, 2)
         }
         .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.mint, prominence: .primary))
-        .frame(maxWidth: 330)
+        .frame(maxWidth: 318)
         .accessibilityLabel("Play Zoo Drop")
         .accessibilityIdentifier("playButton")
 
@@ -144,19 +166,19 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Safari Modes")
-                        .font(.title2.weight(.black))
+                    Text("More Ways to Play")
+                        .font(.title3.weight(.black))
                         .foregroundStyle(.white)
-                    Text("Daily seeds, timed runs, zen play, and challenges.")
+                    Text("Optional score variants after you know the basics.")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .foregroundStyle(.white.opacity(0.8))
                 }
                 Spacer()
             }
 
             ScrollView(.horizontal) {
                 HStack(spacing: 12) {
-                    ForEach(GameMode.allCases) { mode in
+                    ForEach(GameMode.allCases.filter { $0 != .classic }) { mode in
                         modeCard(mode)
                     }
                 }
@@ -167,25 +189,80 @@ struct HomeView: View {
         }
         .padding(16)
         .frame(maxWidth: 430, alignment: .leading)
-        .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .premiumGlass(cornerRadius: 26, tint: PremiumTheme.lagoon.opacity(0.14))
         .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
         .clipped()
     }
 
-    private var menuGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            menuButton(.scores, color: .blue, icon: "rosette")
-            menuButton(.daily, color: .orange, icon: "calendar")
-            menuButton(.goals, color: .purple, icon: "star.fill")
-            menuButton(.zoodex, color: .mint, icon: "pawprint.fill")
-            menuButton(.quests, color: .pink, icon: "checkmark.seal.fill")
-            menuButton(.shop, color: .yellow, icon: "cart.fill", darkText: true)
-            menuButton(.howToPlay, color: .teal, icon: "questionmark.circle.fill")
-            menuButton(.settings, color: .gray, icon: "gearshape.fill")
-            menuButton(.legal, color: .indigo, icon: "doc.text.fill")
+    private var homeDock: some View {
+        let itemWidth = dockItemWidth
+
+        return HStack(spacing: 8) {
+            dockButton(.scores, color: .blue, icon: "rosette", itemWidth: itemWidth)
+            dockButton(.daily, color: .orange, icon: "calendar", itemWidth: itemWidth)
+            dockButton(.howToPlay, color: .teal, icon: "questionmark.circle.fill", itemWidth: itemWidth)
+            dockButton(.shop, color: .yellow, icon: "cart.fill", itemWidth: itemWidth)
+
+            Button {
+                showingUtilityMenu = true
+            } label: {
+                dockButtonLabel(title: "More", icon: "ellipsis.circle.fill", color: .white, itemWidth: itemWidth)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("homeDockMoreButton")
         }
-        .frame(maxWidth: 430)
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity)
+        .background(.black.opacity(0.74))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.white.opacity(0.18))
+                .frame(height: 1)
+        }
+        .frame(height: 92)
+    }
+
+    private var dockItemWidth: CGFloat {
+        let availableWidth = UIScreen.main.bounds.width - 20 - 32
+        return min(66, max(52, floor(availableWidth / 5)))
+    }
+
+    private func dockButton(_ sheet: HomeSheet, color: Color, icon: String, itemWidth: CGFloat) -> some View {
+        Button {
+            open(sheet)
+        } label: {
+            dockButtonLabel(title: sheet.title, icon: icon, color: color, itemWidth: itemWidth)
+                .overlay(alignment: .topTrailing) {
+                    if sheet == .daily && shouldAnimateDailyButton {
+                        Circle()
+                            .fill(PremiumTheme.gold)
+                            .frame(width: 9, height: 9)
+                            .padding(.top, 7)
+                            .padding(.trailing, 9)
+                            .accessibilityHidden(true)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("homeDock-\(sheet.rawValue)")
+    }
+
+    private func dockButtonLabel(title: String, icon: String, color: Color, itemWidth: CGFloat) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.headline.weight(.black))
+                .foregroundStyle(color == .yellow ? PremiumTheme.gold : color)
+                .frame(height: 20)
+            Text(title)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(width: itemWidth, height: 62)
+        .premiumGlass(cornerRadius: 18, tint: color.opacity(0.12), interactive: true)
     }
 
     private func modeCard(_ mode: GameMode) -> some View {
@@ -207,8 +284,8 @@ struct HomeView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
             }
-            .frame(width: 142, height: 118, alignment: .leading)
-            .padding(12)
+            .frame(width: 126, height: 94, alignment: .leading)
+            .padding(10)
             .premiumGlass(cornerRadius: 22, tint: mode.tint.opacity(0.28), interactive: true)
         }
         .buttonStyle(.plain)
@@ -235,35 +312,18 @@ struct HomeView: View {
         .premiumGlass(cornerRadius: 22, tint: .white.opacity(0.14))
     }
 
-    private func menuButton(_ sheet: HomeSheet, color: Color, icon: String, darkText: Bool = false) -> some View {
-        Button {
-            switch sheet {
-            case .scores:
-                gameCenterManager.showLeaderboards()
-            case .goals:
-                gameCenterManager.showAchievements()
-            case .daily:
-                shouldAnimateDailyButton = false
-                activeSheet = sheet
-            default:
-                activeSheet = sheet
-            }
-        } label: {
-            VStack(spacing: 7) {
-                Image(systemName: icon)
-                    .font(.title3.weight(.heavy))
-                Text(sheet.title)
-                    .font(.caption.weight(.heavy))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            .frame(maxWidth: .infinity, minHeight: 70)
-            .premiumGlass(cornerRadius: 18, tint: color.opacity(0.3), interactive: true)
-            .foregroundStyle(.white)
-            .scaleEffect(sheet == .daily && shouldAnimateDailyButton ? 1.05 : 1)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: shouldAnimateDailyButton)
+    private func open(_ sheet: HomeSheet) {
+        switch sheet {
+        case .scores:
+            gameCenterManager.showLeaderboards()
+        case .goals:
+            gameCenterManager.showAchievements()
+        case .daily:
+            shouldAnimateDailyButton = false
+            activeSheet = sheet
+        default:
+            activeSheet = sheet
         }
-        .accessibilityIdentifier("menuButton-\(sheet.rawValue)")
     }
 
     @ViewBuilder
@@ -320,6 +380,82 @@ struct HomeView: View {
     }
 }
 
+private struct UtilityMenuView: View {
+    let select: (HomeSheet) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private let items: [(sheet: HomeSheet, color: Color, icon: String)] = [
+        (.scores, .blue, "rosette"),
+        (.daily, .orange, "calendar"),
+        (.goals, .purple, "star.fill"),
+        (.zoodex, .mint, "pawprint.fill"),
+        (.quests, .pink, "checkmark.seal.fill"),
+        (.shop, .yellow, "cart.fill"),
+        (.howToPlay, .teal, "questionmark.circle.fill"),
+        (.settings, .gray, "gearshape.fill"),
+        (.legal, .indigo, "doc.text.fill")
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PremiumTheme.backgroundGradient
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Zoo Hub")
+                                .font(.title.weight(.black))
+                                .foregroundStyle(.white)
+                            Text("Scores, rewards, settings, legal, and collection tools.")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.78))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 12)], spacing: 12) {
+                            ForEach(items, id: \.sheet) { item in
+                                Button {
+                                    dismiss()
+                                    select(item.sheet)
+                                } label: {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: item.icon)
+                                            .font(.title3.weight(.black))
+                                            .foregroundStyle(item.color == .yellow ? PremiumTheme.gold : item.color)
+                                        Text(item.sheet.title)
+                                            .font(.caption.weight(.black))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.72)
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 78)
+                                    .premiumGlass(cornerRadius: 18, tint: item.color.opacity(0.12), interactive: true)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("utilityMenu-\(item.sheet.rawValue)")
+                            }
+                        }
+                    }
+                    .padding(20)
+                    .padding(.bottom, 12)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                }
+            }
+        }
+    }
+}
+
 struct GameLaunch: Identifiable, Equatable {
     enum Kind: Equatable {
         case new(GameMode)
@@ -361,11 +497,11 @@ extension GameMode {
 
     var shortDescription: String {
         switch self {
-        case .classic: return "Endless tower"
-        case .dailySafari: return "Shared daily seed"
-        case .timedStampede: return "Two-minute rush"
-        case .zen: return "No fail line"
-        case .challenge: return "Goal run"
+        case .classic: return "Main rules"
+        case .dailySafari: return "Same queue daily"
+        case .timedStampede: return "90-second rush"
+        case .zen: return "Practice mode"
+        case .challenge: return "Target score"
         }
     }
 }
@@ -391,7 +527,7 @@ private enum HomeSheet: String, Identifiable {
         case .zoodex: return "ZooDex"
         case .quests: return "Quests"
         case .shop: return "Shop"
-        case .howToPlay: return "How"
+        case .howToPlay: return "Help"
         case .settings: return "Settings"
         case .legal: return "Legal"
         }

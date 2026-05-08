@@ -15,58 +15,69 @@ struct DailyLoginView: View {
     
     var body: some View {
         ZStack {
-            // Background gradient for visual appeal.
-            LinearGradient(colors: [.blue.opacity(0.4), .purple.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            PremiumTheme.backgroundGradient
                 .ignoresSafeArea()
 
-            VStack(spacing: 20) {
-                Text("Daily Login Bonus")
-                    .font(.largeTitle.bold())
-                    .foregroundColor(.white)
-                    .shadow(radius: 3)
-                    .padding(.top, 40)
-                
-                Text("Come back every day for bigger rewards!")
-                    .font(.headline)
-                    .foregroundColor(.white.opacity(0.9))
-                    .multilineTextAlignment(.center)
-                
-                // Grid displaying the 7 days of rewards.
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: 15) {
-                    ForEach(0..<7) { dayIndex in
-                        dayView(day: dayIndex + 1, reward: rewards[dayIndex])
-                    }
-                }
-                .padding()
+            ScrollView {
+                VStack(spacing: 18) {
+                    Text("Daily Bonus")
+                        .font(.largeTitle.weight(.black))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 3)
 
-                // Claim button logic.
-                if canClaimToday() {
-                    Button(action: claimReward) {
-                        Text("Claim Today's Reward!")
-                            .font(.headline.bold())
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(.green)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
+                    Text("Come back every day for bigger golden egg rewards.")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 12)], spacing: 12) {
+                        ForEach(0..<7) { dayIndex in
+                            dayView(day: dayIndex + 1, reward: rewards[dayIndex])
+                        }
                     }
-                } else {
-                    Text("You've already claimed today's reward!")
-                        .font(.headline.bold())
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(.gray)
-                        .foregroundColor(.white.opacity(0.8))
-                        .cornerRadius(12)
+                    .padding(.top, 4)
                 }
-                
-                Button("Close", action: { dismiss() })
-                    .foregroundColor(.white)
-                    .padding(.top, 10)
-                
-                Spacer()
+                .frame(maxWidth: 430)
+                .padding(.horizontal, 20)
+                .padding(.top, 28)
+                .padding(.bottom, 128)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal)
+            .scrollIndicators(.hidden)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 10) {
+                claimArea
+
+                Button("Close") {
+                    dismiss()
+                }
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
+            .background(.black.opacity(0.74))
+        }
+    }
+
+    @ViewBuilder
+    private var claimArea: some View {
+        if canClaimToday() {
+            Button(action: claimReward) {
+                Label("Claim Today's Reward", systemImage: "gift.fill")
+            }
+            .buttonStyle(PremiumButtonStyle(tint: PremiumTheme.mint, prominence: .primary))
+            .accessibilityIdentifier("claimDailyRewardButton")
+        } else {
+            Text("You've already claimed today's reward.")
+                .font(.headline.weight(.bold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .foregroundStyle(.white.opacity(0.82))
+                .premiumGlass(cornerRadius: 18, tint: .white.opacity(0.1))
         }
     }
     

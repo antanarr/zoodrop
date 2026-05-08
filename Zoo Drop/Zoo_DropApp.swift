@@ -90,9 +90,14 @@ struct Zoo_DropApp: App {
     private func finishLoading() async {
         if ProcessInfo.processInfo.arguments.contains("UITEST_MODE") {
             UserDefaults.standard.removeObject(forKey: "savedRunSnapshot")
-            hasConsentedToPrivacy = true
-            hasCompletedOnboarding = true
-            launchStep = .home
+            if ProcessInfo.processInfo.arguments.contains("UITEST_FIRST_RUN") {
+                hasConsentedToPrivacy = false
+                hasCompletedOnboarding = false
+            } else {
+                hasConsentedToPrivacy = true
+                hasCompletedOnboarding = true
+            }
+            launchStep = nextLaunchStep
             return
         }
 
@@ -121,41 +126,45 @@ private struct PrivacyConsentView: View {
                 .scaledToFill()
                 .ignoresSafeArea()
 
-            VStack(spacing: 22) {
-                Image("zoologoegg")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 118, height: 118)
+            ScrollView {
+                VStack(spacing: 22) {
+                    Image("zoologoegg")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 118, height: 118)
 
-                Text("Privacy & Ads")
-                    .font(.system(size: 32, weight: .heavy, design: .rounded))
+                    Text("Privacy & Ads")
+                        .font(.system(size: 32, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    Text("Zoo Drop stores progress on this device and uses Apple Game Center, StoreKit, and Google AdMob. Ads are requested only after Google's privacy checks, and Zoo Club subscribers or Remove Ads owners do not receive ads.")
+                        .font(.callout.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.9))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(spacing: 12) {
+                        Button("Continue", action: onContinue)
+                            .buttonStyle(PrimaryConsentButton(color: .green))
+                            .accessibilityIdentifier("privacyContinueButton")
+                    }
+
+                    Button("Privacy Policy") {
+                        showingPrivacyPolicy = true
+                    }
+                    .font(.footnote.weight(.bold))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-
-                Text("Zoo Drop stores progress on this device and uses Apple Game Center, StoreKit, and Google AdMob. Ads are requested only after Google's privacy checks, and Zoo Club subscribers or Remove Ads owners do not receive ads.")
-                    .font(.callout.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.9))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(spacing: 12) {
-                    Button("Continue", action: onContinue)
-                        .buttonStyle(PrimaryConsentButton(color: .green))
-                        .accessibilityIdentifier("privacyContinueButton")
+                    .accessibilityIdentifier("privacyPolicyButton")
                 }
-
-                Button("Privacy Policy") {
-                    showingPrivacyPolicy = true
-                }
-                .font(.footnote.weight(.bold))
-                .foregroundStyle(.white)
-                .accessibilityIdentifier("privacyPolicyButton")
+                .padding(24)
+                .frame(maxWidth: 430)
+                .background(.black.opacity(0.46), in: RoundedRectangle(cornerRadius: 24))
+                .padding(24)
+                .frame(maxWidth: .infinity)
             }
-            .padding(24)
-            .frame(maxWidth: 430)
-            .background(.black.opacity(0.46), in: RoundedRectangle(cornerRadius: 24))
-            .padding(24)
+            .scrollIndicators(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showingPrivacyPolicy) {
